@@ -10,7 +10,7 @@ import anyio
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-TMP_PATH: Final[str] = os.environ.get("TMP_PATH", "/tmp/app_images")
+TMP_PATH: Final[str] = os.environ.get("TMP_PATH", "./images")
 
 
 class ImageResponseState(StrEnum):
