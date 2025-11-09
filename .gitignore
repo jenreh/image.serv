@@ -83,6 +83,7 @@ env.bak/
 env/
 ENV/
 htmlcov/
+images/
 instance/
 ipython_config.py
 knowledge/migrate.py
