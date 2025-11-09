@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.backend.generators.google import GoogleImageGenerator
-from app.backend.models import EditImageInput, GenerationInput
+from server.backend.generators.google import GoogleImageGenerator
+from server.backend.models import EditImageInput, GenerationInput
 
 
 class TestGoogleImageGeneratorInit:

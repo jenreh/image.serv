@@ -154,11 +154,11 @@ import reflex as rx
 class MyState(rx.State):
     value: str = ""
     error: str = ""
-    
+
     def set_value(self, val: str) -> None:
         """Set value with validation."""
         self.value = val
-    
+
     @rx.event
     async def validate(self) -> AsyncGenerator[Any, Any]:
         """Validate and show toast."""
@@ -185,7 +185,7 @@ def my_component() -> rx.Component:
 
 ```python
 import pytest
-from app.module import function_to_test
+from server.module import function_to_test
 
 def test_function_basic_case() -> None:
     """Test basic functionality."""
@@ -237,7 +237,7 @@ def test_with_fixture(sample_data: dict[str, Any]) -> None:
 class FormState(rx.State):
     username: str = ""
     username_error: str = ""
-    
+
     @rx.event
     async def validate_username(self) -> AsyncGenerator[Any, Any]:
         """Validate username field."""

@@ -5,9 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import respx
 from httpx import Response
+from server.backend.generators.prompt_enhancer import PromptEnhancer
 
-from app.backend.generators.openai import OpenAIImageGenerator
-from app.backend.models import EditImageInput, GenerationInput
+from server.backend.generators.openai import OpenAIImageGenerator
+from server.backend.models import EditImageInput, GenerationInput
 
 
 class TestOpenAIImageGeneratorInit:
@@ -44,27 +45,6 @@ class TestOpenAIImageGeneratorInit:
         assert generator.id == "gpt-image-1"
         assert generator.model == "gpt-image-1"
         assert generator.api_key == openai_api_key
-
-
-class TestOpenAIImageGeneratorEnhancePrompt:
-    """Test prompt enhancement functionality."""
-
-    @pytest.mark.asyncio
-    async def test_enhance_prompt(
-        self, mock_openai_client: AsyncMock, openai_base_url: str
-    ) -> None:
-        """Test prompt enhancement."""
-        generator = OpenAIImageGenerator(
-            api_key="test_key",
-            base_url=openai_base_url,
-            backend_server="http://localhost:8000",
-        )
-        generator.client = mock_openai_client
-
-        enhanced = await generator._enhance_prompt("A simple prompt")
-
-        assert enhanced == "Enhanced prompt"
-        mock_openai_client.chat.completions.create.assert_called_once()
 
 
 class TestOpenAIImageGeneratorGenerate:
@@ -149,6 +129,8 @@ class TestOpenAIImageGeneratorGenerate:
             backend_server="http://localhost:8000",
         )
         generator.client = mock_openai_client
+        # Need to reinitialize prompt_enhancer with the mock client
+        generator.prompt_enhancer = PromptEnhancer(mock_openai_client)
 
         input_data = GenerationInput(prompt="Simple prompt", enhance_prompt=True)
         response = await generator.generate(input_data)

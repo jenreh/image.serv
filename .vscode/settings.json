@@ -31,6 +31,18 @@
     "files.insertFinalNewline": true,
     "files.trimTrailingWhitespace": true,
     "files.eol": "\n",
+    "files.exclude": {
+        ".coverage": true,
+        "coverage.xml": true,
+        "**/.cache": true,
+        "**/__pycache__": true,
+        "**/*.pyc": {
+            "when": "$(basename).py"
+        }
+    },
+    "files.watcherExclude": {
+        "**/.cache/**": true
+    },
     "debugpy.debugJustMyCode": false,
     "debugpy.showPythonInlineValues": true,
     "python.analysis.autoFormatStrings": true,
@@ -66,12 +78,6 @@
     "terminal.integrated.defaultProfile.linux": "zsh",
     "terminal.integrated.defaultProfile.osx": "zsh",
     "workbench.iconTheme": "vscode-icons",
-    "files.exclude": {
-        "**/.cache": true
-    },
-    "files.watcherExclude": {
-        "**/.cache/**": true
-    },
     "github.copilot.chat.codesearch.enabled": true,
     "github.copilot.chat.codeGeneration.useInstructionFiles": true,
     "github.copilot.chat.copilotDebugCommand.enabled": true,

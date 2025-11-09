@@ -3,15 +3,15 @@ from typing import Final
 
 from openai import AsyncAzureOpenAI
 
-from app.backend.generators.image_processor import ImageProcessor
-from app.backend.generators.prompt_enhancer import PromptEnhancer
-from app.backend.models import (
+from server.backend.image_processor import ImageProcessor
+from server.backend.models import (
     EditImageInput,
     GenerationInput,
     ImageGenerator,
     ImageGeneratorResponse,
     ImageResponseState,
 )
+from server.backend.prompt_enhancer import PromptEnhancer
 
 logger = logging.getLogger(__name__)
 

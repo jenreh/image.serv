@@ -31,5 +31,21 @@
                 "duckduckgo-mcp-server"
             ]
         },
+        "image-generation": {
+            "command": "uv",
+            "args": [
+                "run",
+                "python",
+                "app/backend/mcp_server.py"
+            ],
+            "cwd": "/Users/jens/Workspace/projekte/image.serv",
+            "env": {
+                "OPENAI_API_KEY": "7cyfRj96FE8viiOSPKVBuokcZ995KP9gNA0wjKcnJMi9BUtnVS7fJQQJ99BDACfhMk5XJ3w3AAAAACOGwadz",
+                "OPENAI_BASE_URL": "https://asy-nm-x-dia-openai.openai.azure.com/",
+                "AZURE_OPENAI_ENDPOINT": "https://asy-nm-x-dia-openai.openai.azure.com/",
+                "BACKEND_SERVER": "http://localhost:8000",
+                "TMP_PATH": "/Users/jens/Workspace/projekte/image.serv/images"
+            }
+        }
     }
 }

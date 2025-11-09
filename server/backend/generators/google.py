@@ -3,7 +3,7 @@ from typing import Final
 
 from google import genai
 
-from app.backend.models import (
+from server.backend.models import (
     EditImageInput,
     GenerationInput,
     ImageGenerator,

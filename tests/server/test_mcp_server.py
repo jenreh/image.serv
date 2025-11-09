@@ -7,8 +7,8 @@ import pytest
 import respx
 from httpx import Response
 
-from app.backend.mcp_server import _edit_image, _generate_image, _url_to_base64
-from app.backend.models import ImageGeneratorResponse, ImageResponseState
+from server.backend.mcp_server import _edit_image, _generate_image, _url_to_base64
+from server.backend.models import ImageGeneratorResponse, ImageResponseState
 
 
 class TestGenerateImageTool:

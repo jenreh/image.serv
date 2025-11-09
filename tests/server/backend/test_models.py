@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.backend.models import EditImageInput, GenerationInput, ImageInputBase
+from server.backend.models import EditImageInput, GenerationInput, ImageInputBase
 
 
 class TestImageInputBase:

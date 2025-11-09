@@ -338,7 +338,7 @@ def my_input_page() -> rx.Component:
 5. **Register page in your application (e.g. `app/app.py`):**
 
 ```python
-from app.pages.examples.my_input_examples import my_input_page
+from server.pages.examples.my_input_examples import my_input_page
 
 # Then add the page to your Reflex app:
 app.add_page(my_input_page, title="My Input", route="/myinput")

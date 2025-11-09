@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from dotenv import load_dotenv
 
-from app.backend.generators.openai import OpenAIImageGenerator
+from server.backend.generators.openai import OpenAIImageGenerator
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -65,12 +65,12 @@ def mock_openai_client() -> AsyncMock:
     mock_edit_response.data = [MagicMock(b64_json="ZWRpdGVkX2ltYWdlX2RhdGE=", url=None)]
     client.images.edit.return_value = mock_edit_response
 
-    # Mock chat completion for prompt enhancement
+    # Mock chat completion for prompt enhancement (async method)
     mock_chat_response = MagicMock()
     mock_chat_response.choices = [
         MagicMock(message=MagicMock(content="Enhanced prompt"))
     ]
-    client.chat.completions.create.return_value = mock_chat_response
+    client.chat.completions.create = AsyncMock(return_value=mock_chat_response)
 
     return client
 

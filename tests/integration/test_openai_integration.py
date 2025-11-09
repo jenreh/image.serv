@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from app.backend.generators.openai import OpenAIImageGenerator
-from app.backend.models import (
+from server.backend.generators.openai import OpenAIImageGenerator
+from server.backend.models import (
     EditImageInput,
     GenerationInput,
 )
@@ -99,9 +99,7 @@ class TestOpenAIIntegrationGenerate:
     @pytest.mark.asyncio
     async def test_generate_basic_image(self, openai_image_generator) -> None:
         """Test basic image generation with real API."""
-        input_data = GenerationInput(
-            prompt="A simple test image of a red square on white background"
-        )
+        input_data = GenerationInput(prompt="A red square on white background")
 
         response = await openai_image_generator.generate(input_data)
 
@@ -186,18 +184,70 @@ class TestOpenAIIntegrationEdit:
 
 
 @pytest.mark.integration
+class TestOpenAIIntegrationMarkdownOutput:
+    """Integration tests demonstrating raw markdown response format."""
+
+    @pytest.mark.asyncio
+    async def test_generate_image_markdown_response(
+        self, openai_image_generator
+    ) -> None:
+        """Demonstrate the raw markdown response from image generation.
+
+        This test shows how the response looks in markdown format,
+        useful for documentation and understanding the API output structure.
+        """
+        input_data = GenerationInput(
+            prompt=(
+                "A beautiful sunset over mountains with vibrant "
+                "orange and purple colors"
+            )
+        )
+
+        response = await openai_image_generator.generate(input_data)
+
+        # Build markdown output showing the response structure
+        markdown_output = f"""# Image Generation Response
+
+## Response State
+- **State**: `{response.state}`
+- **Error**: `{response.error if response.error else "None"}`
+
+## Generated Images
+- **Count**: {len(response.images)}
+- **Images**:
+"""
+        for idx, image_url in enumerate(response.images, 1):
+            markdown_output += f"\n  {idx}. URL: `{image_url}`"
+            # Extract filename from URL
+            if "/" in image_url:
+                filename = image_url.split("/")[-1]
+                markdown_output += f"\n     Filename: `{filename}`"
+
+        markdown_output += "\n\n## Response Details\n"
+        markdown_output += "- Response type: `ImageGeneratorResponse`\n"
+        img_count = len(response.images)
+        markdown_output += f"- Images field type: `list[str]` ({img_count} items)\n"
+
+        # Log the markdown output
+        logger.info("Raw markdown response:\n%s", markdown_output)
+
+        # Standard assertions
+        assert response.state == "succeeded"
+        assert len(response.images) > 0
+        assert isinstance(response.images[0], str)
+
+
+@pytest.mark.integration
 class TestOpenAIIntegrationErrorHandling:
     """Integration tests for error handling."""
 
     @pytest.mark.asyncio
-    async def test_invalid_api_key(
-        self, openai_base_url: str, backend_server: str
-    ) -> None:
-        """Test error handling with invalid API key."""
+    async def test_invalid_api_key(self, openai_base_url: str) -> None:
+        """Test handling of invalid API key."""
         generator = OpenAIImageGenerator(
             api_key="invalid_key_12345",
+            backend_server="http://localhost:8000",
             base_url=openai_base_url,
-            backend_server=backend_server,
         )
 
         input_data = GenerationInput(prompt="Test")
