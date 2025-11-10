@@ -35,6 +35,9 @@ def _build_success_response(
     size: str,
     processing_time_ms: int,
     enhanced_prompt: str | None = None,
+    model: str | None = None,
+    quality: str | None = None,
+    user: str | None = None,
 ) -> ImageResponse:
     """Build success response with formatted data and metadata.
 
@@ -42,12 +45,12 @@ def _build_success_response(
         response_obj: Formatted response object from generate_response
         response_format: Requested format ("image", "adaptive_card", or "markdown")
         prompt: Original prompt
-        model: Model used
         size: Image size
-        quality: Image quality
-        user: User identifier
         processing_time_ms: Processing time in milliseconds
         enhanced_prompt: Enhanced/refined prompt if available
+        model: Model used (optional)
+        quality: Image quality (optional)
+        user: User identifier (optional)
 
     Returns:
         ImageResponse with success status
@@ -60,12 +63,14 @@ def _build_success_response(
     else:
         image_data = ImageData(markdown=response_obj)
 
-    # Build metadata
-    metadata = ResponseMetadata(
+    # Build metadata using helper function
+    metadata = _build_response_metadata(
         prompt=prompt,
         size=size,
         response_format=response_format,
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),  # noqa: UP017
+        model=model,
+        quality=quality,
+        user=user,
         processing_time_ms=processing_time_ms,
         enhanced_prompt=enhanced_prompt,
     )
@@ -77,6 +82,41 @@ def _build_success_response(
         data=image_data,
         metadata=metadata,
         error=None,
+    )
+
+
+def _build_response_metadata(
+    prompt: str,
+    size: str,
+    response_format: str,
+    model: str | None = None,
+    quality: str | None = None,
+    user: str | None = None,
+    processing_time_ms: int = 0,
+    enhanced_prompt: str | None = None,
+) -> ResponseMetadata:
+    """Build response metadata object with proper field mapping.
+
+    Args:
+        prompt: Original user prompt
+        size: Image size (e.g., "1024x1024")
+        response_format: Response format (e.g., "image", "adaptive_card", "markdown")
+        model: Generator model name (optional)
+        quality: Image quality (optional)
+        user: User identifier (optional)
+        processing_time_ms: Processing time in milliseconds
+        enhanced_prompt: Enhanced/refined prompt (optional)
+
+    Returns:
+        ResponseMetadata object with all fields populated
+    """
+    return ResponseMetadata(
+        prompt=prompt,
+        size=size,
+        response_format=response_format,
+        enhanced_prompt=enhanced_prompt,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        processing_time_ms=processing_time_ms,
     )
 
 
@@ -108,7 +148,13 @@ def _error_response(
         ImageResponse with error status
     """
     metadata = _build_response_metadata(
-        prompt, model, size, quality, user, response_format, 0
+        prompt=prompt,
+        size=size,
+        response_format=response_format,
+        model=model,
+        quality=quality,
+        user=user,
+        processing_time_ms=0,
     )
     return ImageResponse(
         status="error",
@@ -174,10 +220,13 @@ async def generate_image_route(
         return _build_success_response(
             response_obj,
             request.response_format,
-            enhanced_prompt,
+            request.prompt,  # Use original prompt, not enhanced_prompt
             request.size,
             processing_time_ms,
-            enhanced_prompt,
+            enhanced_prompt,  # Pass enhanced_prompt as keyword arg
+            model=generator.model,
+            quality=getattr(request, "quality", None),
+            user=getattr(request, "user", None),
         )
 
     except HTTPException:
@@ -185,12 +234,15 @@ async def generate_image_route(
     except Exception as e:
         logger.exception("Unexpected error during generation: %s", e)
         return _error_response(
-            request.prompt,
-            request.size,
-            request.response_format,
-            "INTERNAL_ERROR",
-            "Internal server error",
-            str(e),
+            prompt=request.prompt,
+            model=generator.model,
+            size=request.size,
+            quality=getattr(request, "quality", "unknown"),
+            user=getattr(request, "user", "unknown"),
+            response_format=request.response_format,
+            code="INTERNAL_ERROR",
+            message="Internal server error",
+            details=str(e),
         )
 
 
@@ -231,6 +283,10 @@ async def edit_image_route(
             request.prompt,
             request.size,
             processing_time_ms,
+            enhanced_prompt=None,  # Edit doesn't enhance prompts
+            model=generator.model,
+            quality=getattr(request, "quality", None),
+            user=getattr(request, "user", None),
         )
 
     except HTTPException:
@@ -238,10 +294,13 @@ async def edit_image_route(
     except Exception as e:
         logger.exception("Unexpected error during editing: %s", e)
         return _error_response(
-            request.prompt,
-            request.size,
-            request.response_format,
-            "INTERNAL_ERROR",
-            "Internal server error",
-            str(e),
+            prompt=request.prompt,
+            model=generator.model,
+            size=request.size,
+            quality=getattr(request, "quality", "unknown"),
+            user=getattr(request, "user", "unknown"),
+            response_format=request.response_format,
+            code="INTERNAL_ERROR",
+            message="Internal server error",
+            details=str(e),
         )
