@@ -174,7 +174,7 @@ async def generate_image_route(
         return _build_success_response(
             response_obj,
             request.response_format,
-            request.prompt,
+            enhanced_prompt,
             request.size,
             processing_time_ms,
             enhanced_prompt,

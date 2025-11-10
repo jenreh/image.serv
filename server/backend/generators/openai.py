@@ -70,11 +70,9 @@ class OpenAIImageGenerator(ImageGenerator):
         # Prepare prompt
         formatted_prompt = self._format_prompt(input_data.prompt, "")
         prompt_to_use = formatted_prompt
-        enhanced_prompt: str | None = None
         if input_data.enhance_prompt:
             logger.debug("Prompt enhancement requested")
             prompt_to_use = await self.prompt_enhancer.enhance(formatted_prompt)
-            enhanced_prompt = prompt_to_use
 
         # Call API
         try:
@@ -92,7 +90,7 @@ class OpenAIImageGenerator(ImageGenerator):
             return ImageGeneratorResponse(
                 state=ImageResponseState.FAILED,
                 images=[],
-                enhanced_prompt=enhanced_prompt,
+                enhanced_prompt=prompt_to_use,
                 error=f"API call failed: {e!s}",
             )
 
@@ -106,14 +104,14 @@ class OpenAIImageGenerator(ImageGenerator):
             return ImageGeneratorResponse(
                 state=ImageResponseState.SUCCEEDED,
                 images=images,
-                enhanced_prompt=enhanced_prompt,
+                enhanced_prompt=prompt_to_use,
             )
         except Exception as e:
             logger.exception("Failed to process generated images")
             return ImageGeneratorResponse(
                 state=ImageResponseState.FAILED,
                 images=[],
-                enhanced_prompt=enhanced_prompt,
+                enhanced_prompt=prompt_to_use,
                 error=f"Failed to process images: {e!s}",
             )
 

@@ -18,15 +18,17 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Final
 
 import uvicorn
 from dotenv import load_dotenv
-from fastmcp import FastMCP
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-from server.api.main import create_app
+from server.api.errors import register_exception_handlers
+from server.api.routes import router
 from server.backend.generators import OpenAIImageGenerator
-from server.backend.image_service import edit_image_impl, generate_image_impl
+from server.mcp_server import get_mcp_server
 
 # Load environment variables from .env file (explicit path for reliability)
 _env_path = Path(__file__).parent.parent / ".env"
@@ -34,6 +36,8 @@ if _env_path.exists():
     load_dotenv(dotenv_path=_env_path)
 else:
     load_dotenv()  # Fallback to automatic detection
+
+TMP_PATH: Final[str] = os.environ.get("TMP_PATH", "../images")
 
 # Configure logging to project directory (NOT /tmp/)
 _logs_dir = Path(__file__).parent.parent / "logs"
@@ -62,7 +66,6 @@ def init_generators() -> None:
 
     openai_key = os.environ.get("OPENAI_API_KEY")
     openai_base_url = os.environ.get("OPENAI_BASE_URL")
-    google_key = os.environ.get("GOOGLE_API_KEY")
     backend_server = os.environ.get("BACKEND_SERVER")
 
     if openai_key and openai_base_url:
@@ -75,7 +78,7 @@ def init_generators() -> None:
         logger.info("Initialized gpt-image-1 generator")
 
         _generators["FLUX.1-Kontext-pro"] = OpenAIImageGenerator(
-            api_key=google_key,
+            api_key=openai_key,
             backend_server=backend_server,
         )
         logger.info("Initialized FLUX.1-Kontext-pro generator")
@@ -88,126 +91,45 @@ def init_generators() -> None:
 init_generators()
 
 # Create MCP server
-mcp = FastMCP(name="Image Generation Server")
+mcp_server = get_mcp_server(generator=_generators.get("gpt-image-1"))
+mcp_app = mcp_server.http_app(
+    stateless_http=True,
+    path="/v1",
+)
 
+app = FastAPI(
+    title="Image Service API",
+    description="REST API for image generation and editing",
+    version="1.0.0",
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url=None,
+    lifespan=mcp_app.lifespan,
+)
 
-@mcp.tool
-async def generate_image(
-    prompt: str,
-    model: Literal["gpt-image-1", "FLUX.1-Kontext-pro"] = "gpt-image-1",
-    n: int = 1,
-    size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = "auto",
-    quality: Literal["low", "medium", "high", "auto"] = "auto",
-    user: str = "default",
-) -> str:
-    """Generate images from text prompts using gpt-image-1 or FLUX.1-Kontext-pro.
+app.mount("/mcp", mcp_app)
+app.include_router(router, prefix="/api/v1", tags=["image"])
+register_exception_handlers(app)
 
-    Args:
-        prompt: Text description of the desired image (max 32000 chars)
-        model: Model to use for generation (default: gpt-image-1)
-        n: Number of images to generate (1-4, default: 1)
-        size: Image dimensions (default: auto)
-        quality: Image quality level (default: auto)
-        user: User identifier for monitoring (default: "default")
-
-    Returns:
-        Markdown with base64-encoded images embedded as data URLs
-    """
-    if not _generators.get("gpt-image-1"):
-        return "Error: No generator available. Check OPENAI_API_KEY configuration."
-
-    generator = _generators["gpt-image-1"]
-    markdown, _ = await generate_image_impl(
-        prompt, generator, model, n, size, quality, user
-    )
-    return markdown
-
-
-@mcp.tool
-async def edit_image(
-    prompt: str,
-    image_paths: list[str],
-    model: Literal["gpt-image-1", "FLUX.1-Kontext-pro"] = "gpt-image-1",
-    mask_path: str | None = None,
-    n: int = 1,
-    size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = "auto",
-    quality: Literal["low", "medium", "high", "auto"] = "auto",
-    output_format: Literal["png", "jpeg", "webp"] = "png",
-    user: str = "default",
-) -> str:
-    """Edit existing images with text prompts and optional masks.
-
-    Args:
-        prompt: Text description of the desired edits (max 32000 chars)
-        image_paths: List of image URLs, file paths, or base64 data URLs (up to 16)
-        model: Model to use (default: gpt-image-1)
-        mask_path: Optional mask image for inpainting (transparent areas = edit zones)
-        n: Number of edited variations to generate (1-4, default: 1)
-        size: Output image dimensions (default: auto)
-        quality: Output image quality (default: auto)
-        output_format: Output format - png, jpeg, or webp (default: png)
-        user: User identifier for monitoring (default: "default")
-
-    Returns:
-        Markdown with base64-encoded edited images
-
-    Note:
-        - Only gpt-image-1 supports image editing
-        - Mask must have same dimensions as input images
-        - Fully transparent areas (alpha=0) indicate where to edit
-    """
-    if not _generators.get("gpt-image-1"):
-        return "Error: No generator available. Check OPENAI_API_KEY configuration."
-
-    generator = _generators["gpt-image-1"]
-    return await edit_image_impl(
-        prompt,
-        image_paths,
-        generator,
-        model,
-        mask_path,
-        n,
-        size,
-        quality,
-        output_format,
-        user,
-    )
-
-
-# Create MCP ASGI app
-logger.info("Creating MCP ASGI application...")
-mcp_app = mcp.http_app(path="/mcp")
-logger.info("✓ MCP app created with endpoint at /mcp")
-
-# Create FastAPI app with MCP's lifespan
-logger.info("Creating FastAPI application...")
-app = create_app(lifespan=mcp_app.lifespan)
-logger.info("✓ FastAPI app created")
-
-# Store generators in app state for REST API
-app.state.generators = _generators
-app.state.mcp = mcp
-
-# Mount MCP server
-app.mount("/", mcp_app)
-logger.info("✓ Mounted MCP server")
-
-logger.info("=" * 60)
-logger.info("Server configuration complete")
-logger.info("  REST API:    /api/v1/*")
-logger.info("  MCP:         /mcp")
-logger.info("  Docs:        /api/docs")
-logger.info("=" * 60)
+tmp_dir = Path(TMP_PATH)
+tmp_dir.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/_upload",
+    StaticFiles(directory=str(tmp_dir.resolve()), check_dir=False),
+    name="uploads",
+)
 
 
 def main() -> None:
-    """Run unified server with both FastAPI and MCP.
-
-    Starts a single Uvicorn server on port 8000 with:
-    - FastAPI REST endpoints at /api/v1/*
-    - MCP protocol endpoint at /mcp
-    """
     logger.info("Starting Uvicorn server...")
+
+    logger.info("=" * 60)
+    logger.info("Server configuration")
+    logger.info("  REST API:    /api/v1/*")
+    logger.info("  MCP:         /mcp")
+    logger.info("  Docs:        /api/docs")
+    logger.info("=" * 60)
+
     uvicorn.run(
         "server.server:app",
         host="0.0.0.0",
