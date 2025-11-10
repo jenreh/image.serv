@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from server.backend.generators import OpenAIImageGenerator
-from server.tools import create_edit_image_tool, create_generate_image_tool
+from server.mcp_tools import create_edit_image_tool, create_generate_image_tool
 
 # Load environment variables from .env file
 load_dotenv()

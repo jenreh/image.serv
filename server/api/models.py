@@ -1,16 +1,12 @@
 """Request and response models for REST API."""
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from server.backend.models import EditImageInput, GenerationInput
-
 __all__ = [
-    "EditImageInput",
     "ErrorDetail",
-    "GenerationInput",
     "ImageData",
     "ImageResponse",
     "ResponseMetadata",
@@ -21,11 +17,15 @@ class ResponseMetadata(BaseModel):
     """Metadata for responses."""
 
     prompt: str
-    model: str
-    n: int
+    enhanced_prompt: str | None = Field(
+        default=None,
+        description="Optimized prompt used for generation when enhancement is enabled",
+    )
     size: str
-    quality: str
-    user: str
+    response_format: str = Field(
+        default="images",
+        description="Response format used: 'images' or 'adaptive_card'",
+    )
     timestamp: str = Field(default_factory=lambda: datetime.now(tz=UTC).isoformat())
     processing_time_ms: int = 0
 
@@ -33,8 +33,18 @@ class ResponseMetadata(BaseModel):
 class ImageData(BaseModel):
     """Image data in response."""
 
-    images: list[str] = Field(default_factory=list, description="Base64 images")
-    markdown: str = Field(default="", description="Markdown with embedded images")
+    images: list[str] = Field(
+        default_factory=list,
+        description="Base64 images (for images format) or empty for adaptive_card",
+    )
+    markdown: str = Field(
+        default="",
+        description="Markdown with embedded images (for backward compatibility)",
+    )
+    adaptive_card: dict[str, Any] | None = Field(
+        default=None,
+        description="Adaptive Card JSON object (when response_format='adaptive_card')",
+    )
 
 
 class ErrorDetail(BaseModel):
@@ -57,6 +67,7 @@ class ImageResponse(BaseModel):
                     "markdown": (
                         "# Generated Images\n![Image](data:image/png;base64,...)"
                     ),
+                    "adaptive_card": None,
                 },
                 "metadata": {
                     "prompt": "Example prompt",
@@ -65,8 +76,10 @@ class ImageResponse(BaseModel):
                     "size": "1024x1024",
                     "quality": "high",
                     "user": "user123",
+                    "response_format": "images",
                     "timestamp": "2025-11-09T12:00:00.000000",
                     "processing_time_ms": 1234,
+                    "enhanced_prompt": "Refined prompt with stylistic guidance",
                 },
                 "error": None,
             }

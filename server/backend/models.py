@@ -22,25 +22,14 @@ class ImageInputBase(BaseModel):
     """Base class for image generation and editing inputs."""
 
     prompt: str = Field(..., description="Text description (max 32000 chars)")
-    model: str = Field(default="gpt-image-1", description="Model to use")
 
-    # Size and quality
     size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(
-        default="auto", description="Image dimensions (width x height)"
-    )
-    quality: Literal["low", "medium", "high", "auto"] = Field(
-        default="auto", description="Image quality level"
+        default="auto", description="Image dimensions"
     )
 
     # Output format
     output_format: Literal["png", "jpeg", "webp"] = Field(
-        default="png", description="Output image format"
-    )
-    output_compression: int = Field(
-        default=100,
-        ge=0,
-        le=100,
-        description="Compression level for jpeg/webp (0-100)",
+        default="jpeg", description="Output image format"
     )
 
     # Background transparency
@@ -48,44 +37,28 @@ class ImageInputBase(BaseModel):
         default="auto", description="Background transparency setting"
     )
 
-    # Generation options
-    n: int = Field(default=1, ge=1, le=10, description="Number of images to generate")
-    user: str = Field(default="default", description="User identifier")
-
-    @property
-    def width(self) -> int:
-        """Extract width from size literal."""
-        if self.size == "auto":
-            return 1024
-        return int(self.size.split("x")[0])
-
-    @property
-    def height(self) -> int:
-        """Extract height from size literal."""
-        if self.size == "auto":
-            return 1024
-        return int(self.size.split("x")[1])
+    # Response format
+    response_format: Literal["image", "adaptive_card", "markdown"] = Field(
+        default="image",
+        description=(
+            "Response format: 'image' for MCP Image objects, "
+            "'adaptive_card' for Adaptive Card JSON, 'markdown' for markdown string"
+        ),
+    )
 
 
 class GenerationInput(ImageInputBase):
     """Input model for image generation (gpt-image-1)."""
 
-    # Generation-specific parameters
-    moderation: Literal["low", "auto"] = Field(
-        default="auto", description="Content moderation level"
+    seed: int = Field(
+        default=0, description="Random seed for reproducibility (0 = random)"
     )
-
-    # Legacy parameters for backward compatibility with existing generators
-    negative_prompt: str = Field(default="", description="Negative prompt")
-    seed: int = Field(default=0, description="Random seed")
     enhance_prompt: bool = Field(default=True, description="Auto-enhance prompt")
-    steps: int = Field(default=4, description="Generation steps (non-OpenAI models)")
 
 
 class EditImageInput(ImageInputBase):
     """Input model for image editing (gpt-image-1)."""
 
-    # Edit-specific parameters
     image_paths: list[str] = Field(
         ...,
         description="List of image URLs, file paths, or base64 data URLs (max 16)",
@@ -96,17 +69,12 @@ class EditImageInput(ImageInputBase):
             "Optional mask image for inpainting (transparent areas = edit zones)"
         ),
     )
-    input_fidelity: Literal["high", "low"] = Field(
-        default="low", description="Style/feature matching effort (high or low)"
-    )
-
-    # Legacy parameter for compatibility
-    negative_prompt: str = Field(default="", description="Negative prompt")
 
 
 class ImageGeneratorResponse(BaseModel):
     state: ImageResponseState
     images: list[str]
+    enhanced_prompt: str | None = None
     error: str = ""
 
 

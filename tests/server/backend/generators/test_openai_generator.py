@@ -2,13 +2,14 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 import respx
 from httpx import Response
-from server.backend.generators.prompt_enhancer import PromptEnhancer
 
 from server.backend.generators.openai import OpenAIImageGenerator
 from server.backend.models import EditImageInput, GenerationInput
+from server.backend.prompt_enhancer import PromptEnhancer
 
 
 class TestOpenAIImageGeneratorInit:
@@ -142,6 +143,7 @@ class TestOpenAIImageGeneratorGenerate:
         call_kwargs = mock_openai_client.images.generate.call_args.kwargs
         assert call_kwargs["prompt"] == "Enhanced prompt"
 
+        assert response.enhanced_prompt == "Enhanced prompt"
         assert len(response.images) == 1
 
 
@@ -275,7 +277,7 @@ class TestOpenAIImageGeneratorLoadImage:
             base_url=openai_base_url,
             backend_server="http://localhost:8000",
         )
-        loaded = await generator._load_image(temp_image_file)
+        loaded = await generator._load_image(temp_image_file)  # noqa: SLF001
 
         assert loaded == sample_image_bytes
 
@@ -294,7 +296,7 @@ class TestOpenAIImageGeneratorLoadImage:
         url = "https://example.com/image.png"
         respx.get(url).mock(return_value=Response(200, content=sample_image_bytes))
 
-        loaded = await generator._load_image(url)
+        loaded = await generator._load_image(url)  # noqa: SLF001
         assert loaded == sample_image_bytes
 
     @pytest.mark.asyncio
@@ -307,7 +309,7 @@ class TestOpenAIImageGeneratorLoadImage:
             base_url=openai_base_url,
             backend_server="http://localhost:8000",
         )
-        loaded = await generator._load_image(sample_base64_image)
+        loaded = await generator._load_image(sample_base64_image)  # noqa: SLF001
 
         assert loaded == sample_image_bytes
 
@@ -321,7 +323,7 @@ class TestOpenAIImageGeneratorLoadImage:
         )
 
         with pytest.raises(FileNotFoundError):
-            await generator._load_image("/nonexistent/file.png")
+            await generator._load_image("/nonexistent/file.png")  # noqa: SLF001
 
     @pytest.mark.asyncio
     @respx.mock
@@ -336,8 +338,8 @@ class TestOpenAIImageGeneratorLoadImage:
         url = "https://example.com/notfound.png"
         respx.get(url).mock(return_value=Response(404))
 
-        with pytest.raises(Exception):
-            await generator._load_image(url)
+        with pytest.raises(httpx.HTTPStatusError):
+            await generator._load_image(url)  # noqa: SLF001
 
 
 class TestOpenAIImageGeneratorErrorHandling:

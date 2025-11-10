@@ -4,43 +4,61 @@ Runs both FastMCP server and FastAPI with REST endpoints from a single
 entry point using combined lifespan management.
 
 Architecture:
+- FastMCP server handles image generation and editing tools
 - FastAPI is the primary ASGI server (runs on port 8000)
-- MCP server is mounted as sub-application at /mcp
-- Both share generator instance via app.state
-- Combined lifespan manages startup/shutdown coordination
+- MCP server is mounted as sub-application with its own lifespan
+- Both share generator instances via app.state
 
 Endpoints:
 - REST API: POST /api/v1/generate_image, /api/v1/edit_image
-- MCP: POST /mcp/ (MCP protocol)
+- MCP: POST /mcp (streamable HTTP protocol)
 """
 
 import logging
+import logging.config
 import os
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Literal
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI
 from fastmcp import FastMCP
 
 from server.api.main import create_app
 from server.backend.generators import OpenAIImageGenerator
-from server.tools import create_edit_image_tool, create_generate_image_tool
+from server.backend.image_service import edit_image_impl, generate_image_impl
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (explicit path for reliability)
+_env_path = Path(__file__).parent.parent / ".env"
+if _env_path.exists():
+    load_dotenv(dotenv_path=_env_path)
+else:
+    load_dotenv()  # Fallback to automatic detection
+
+# Configure logging to project directory (NOT /tmp/)
+_logs_dir = Path(__file__).parent.parent / "logs"
+_logs_dir.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(_logs_dir / "server.log"),
+        logging.StreamHandler(),
+    ],
+)
 
 logger = logging.getLogger(__name__)
 
 
-async def init_generators() -> dict[str, OpenAIImageGenerator]:
-    """Initialize generators from environment variables.
+# Initialize generators at module level
+_generators: dict[str, OpenAIImageGenerator] = {}
 
-    Returns:
-        Dictionary of initialized generators
-    """
-    generators: dict[str, OpenAIImageGenerator] = {}
+
+def init_generators() -> None:
+    """Initialize generators from environment variables."""
+    if _generators:
+        return  # Already initialized
 
     openai_key = os.environ.get("OPENAI_API_KEY")
     openai_base_url = os.environ.get("OPENAI_BASE_URL")
@@ -48,7 +66,7 @@ async def init_generators() -> dict[str, OpenAIImageGenerator]:
     backend_server = os.environ.get("BACKEND_SERVER")
 
     if openai_key and openai_base_url:
-        generators["gpt-image-1"] = OpenAIImageGenerator(
+        _generators["gpt-image-1"] = OpenAIImageGenerator(
             api_key=openai_key,
             base_url=openai_base_url,
             backend_server=backend_server,
@@ -56,99 +74,130 @@ async def init_generators() -> dict[str, OpenAIImageGenerator]:
         )
         logger.info("Initialized gpt-image-1 generator")
 
-        generators["FLUX.1-Kontext-pro"] = OpenAIImageGenerator(
+        _generators["FLUX.1-Kontext-pro"] = OpenAIImageGenerator(
             api_key=google_key,
             backend_server=backend_server,
         )
         logger.info("Initialized FLUX.1-Kontext-pro generator")
 
-    if not generators:
-        logger.warning("No generators initialized - check environment variables")
-
-    return generators
+    if not _generators:
+        logger.warning("✗ No generators initialized - check environment variables")
 
 
-def create_mcp_server(
-    generators: dict[str, OpenAIImageGenerator],
-) -> FastMCP:
-    """Create and configure MCP server with tools.
+# Initialize generators
+init_generators()
 
-    Args:
-        generators: Dictionary of initialized generators
-
-    Returns:
-        Configured FastMCP server instance
-    """
-    mcp = FastMCP(name="Image Generation Server")
-
-    if not generators.get("gpt-image-1"):
-        logger.error("Cannot register MCP tools: gpt-image-1 generator not available")
-        return mcp
-
-    generator = generators["gpt-image-1"]
-
-    # Register generation tool
-    generate_tool = create_generate_image_tool(generator)
-    mcp.tool(generate_tool)
-    logger.info("Registered MCP generate_image tool")
-
-    # Register editing tool
-    edit_tool = create_edit_image_tool(generator)
-    mcp.tool(edit_tool)
-    logger.info("Registered MCP edit_image tool")
-
-    return mcp
+# Create MCP server
+mcp = FastMCP(name="Image Generation Server")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Combined lifespan manager for FastAPI and MCP.
-
-    Handles startup and shutdown of both REST API and MCP server.
+@mcp.tool
+async def generate_image(
+    prompt: str,
+    model: Literal["gpt-image-1", "FLUX.1-Kontext-pro"] = "gpt-image-1",
+    n: int = 1,
+    size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = "auto",
+    quality: Literal["low", "medium", "high", "auto"] = "auto",
+    user: str = "default",
+) -> str:
+    """Generate images from text prompts using gpt-image-1 or FLUX.1-Kontext-pro.
 
     Args:
-        app: FastAPI application instance
-
-    Yields:
-        None
-    """
-    # ===== STARTUP =====
-    logger.info("Starting unified server...")
-
-    # Initialize generators
-    generators = await init_generators()
-    app.state.generators = generators
-
-    # Create and configure MCP server
-    mcp = create_mcp_server(generators)
-    app.state.mcp = mcp
-
-    # Create MCP ASGI app
-    mcp_app = mcp.http_app(path="/mcp")
-    logger.info("Created MCP ASGI app at /mcp")
-
-    # Mount MCP as sub-application
-    app.mount("/mcp", mcp_app)
-
-    logger.info("Mounted MCP server - unified server ready on port 8000")
-    logger.info("Available endpoints: REST /api/v1/*, MCP /mcp/")
-
-    yield  # Server runs here
-
-    # ===== SHUTDOWN =====
-    logger.info("Shutting down unified server...")
-    logger.info("Cleanup complete")
-
-
-def create_unified_app() -> FastAPI:
-    """Create FastAPI application with combined lifespan.
+        prompt: Text description of the desired image (max 32000 chars)
+        model: Model to use for generation (default: gpt-image-1)
+        n: Number of images to generate (1-4, default: 1)
+        size: Image dimensions (default: auto)
+        quality: Image quality level (default: auto)
+        user: User identifier for monitoring (default: "default")
 
     Returns:
-        FastAPI application instance
+        Markdown with base64-encoded images embedded as data URLs
     """
-    app = create_app()
-    app.lifespan = lifespan
-    return app
+    if not _generators.get("gpt-image-1"):
+        return "Error: No generator available. Check OPENAI_API_KEY configuration."
+
+    generator = _generators["gpt-image-1"]
+    markdown, _ = await generate_image_impl(
+        prompt, generator, model, n, size, quality, user
+    )
+    return markdown
+
+
+@mcp.tool
+async def edit_image(
+    prompt: str,
+    image_paths: list[str],
+    model: Literal["gpt-image-1", "FLUX.1-Kontext-pro"] = "gpt-image-1",
+    mask_path: str | None = None,
+    n: int = 1,
+    size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = "auto",
+    quality: Literal["low", "medium", "high", "auto"] = "auto",
+    output_format: Literal["png", "jpeg", "webp"] = "png",
+    user: str = "default",
+) -> str:
+    """Edit existing images with text prompts and optional masks.
+
+    Args:
+        prompt: Text description of the desired edits (max 32000 chars)
+        image_paths: List of image URLs, file paths, or base64 data URLs (up to 16)
+        model: Model to use (default: gpt-image-1)
+        mask_path: Optional mask image for inpainting (transparent areas = edit zones)
+        n: Number of edited variations to generate (1-4, default: 1)
+        size: Output image dimensions (default: auto)
+        quality: Output image quality (default: auto)
+        output_format: Output format - png, jpeg, or webp (default: png)
+        user: User identifier for monitoring (default: "default")
+
+    Returns:
+        Markdown with base64-encoded edited images
+
+    Note:
+        - Only gpt-image-1 supports image editing
+        - Mask must have same dimensions as input images
+        - Fully transparent areas (alpha=0) indicate where to edit
+    """
+    if not _generators.get("gpt-image-1"):
+        return "Error: No generator available. Check OPENAI_API_KEY configuration."
+
+    generator = _generators["gpt-image-1"]
+    return await edit_image_impl(
+        prompt,
+        image_paths,
+        generator,
+        model,
+        mask_path,
+        n,
+        size,
+        quality,
+        output_format,
+        user,
+    )
+
+
+# Create MCP ASGI app
+logger.info("Creating MCP ASGI application...")
+mcp_app = mcp.http_app(path="/mcp")
+logger.info("✓ MCP app created with endpoint at /mcp")
+
+# Create FastAPI app with MCP's lifespan
+logger.info("Creating FastAPI application...")
+app = create_app(lifespan=mcp_app.lifespan)
+logger.info("✓ FastAPI app created")
+
+# Store generators in app state for REST API
+app.state.generators = _generators
+app.state.mcp = mcp
+
+# Mount MCP server
+app.mount("/", mcp_app)
+logger.info("✓ Mounted MCP server")
+
+logger.info("=" * 60)
+logger.info("Server configuration complete")
+logger.info("  REST API:    /api/v1/*")
+logger.info("  MCP:         /mcp")
+logger.info("  Docs:        /api/docs")
+logger.info("=" * 60)
 
 
 def main() -> None:
@@ -156,17 +205,15 @@ def main() -> None:
 
     Starts a single Uvicorn server on port 8000 with:
     - FastAPI REST endpoints at /api/v1/*
-    - MCP protocol endpoint at /mcp/
+    - MCP protocol endpoint at /mcp
     """
-    logger.info("Creating unified server...")
-    app = create_unified_app()
-
-    logger.info("Starting Uvicorn server on 0.0.0.0:8000")
+    logger.info("Starting Uvicorn server...")
     uvicorn.run(
-        app,
+        "server.server:app",
         host="0.0.0.0",
         port=8000,
         log_level="info",
+        reload=True,
     )
 
 

@@ -103,6 +103,7 @@ class TestGoogleImageGeneratorGenerate:
 
         assert response.state == "succeeded"
         assert len(response.images) == 1
+        assert response.enhanced_prompt == "Enhanced Google prompt"
 
 
 class TestGoogleImageGeneratorEdit:

@@ -1,7 +1,7 @@
 """REST API routes for image generation and editing."""
 
+import json
 import logging
-import re
 import time
 from datetime import datetime, timezone
 from typing import Annotated
@@ -14,8 +14,8 @@ from server.backend.image_service import (
     generate_image_impl,
 )
 from server.backend.models import EditImageInput, GenerationInput
+from server.backend.utils import generate_response
 
-from .errors import GenerationError
 from .models import (
     ErrorDetail,
     ImageData,
@@ -26,6 +26,96 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _build_success_response(
+    response_obj: str | object,
+    response_format: str,
+    prompt: str,
+    size: str,
+    processing_time_ms: int,
+    enhanced_prompt: str | None = None,
+) -> ImageResponse:
+    """Build success response with formatted data and metadata.
+
+    Args:
+        response_obj: Formatted response object from generate_response
+        response_format: Requested format ("image", "adaptive_card", or "markdown")
+        prompt: Original prompt
+        model: Model used
+        size: Image size
+        quality: Image quality
+        user: User identifier
+        processing_time_ms: Processing time in milliseconds
+        enhanced_prompt: Enhanced/refined prompt if available
+
+    Returns:
+        ImageResponse with success status
+    """
+    # Format response data based on format type
+    if response_format == "image":
+        image_data = ImageData(images=[response_obj.data])
+    elif response_format == "adaptive_card":
+        image_data = ImageData(adaptive_card=json.loads(response_obj))
+    else:
+        image_data = ImageData(markdown=response_obj)
+
+    # Build metadata
+    metadata = ResponseMetadata(
+        prompt=prompt,
+        size=size,
+        response_format=response_format,
+        timestamp=datetime.now(tz=timezone.utc).isoformat(),  # noqa: UP017
+        processing_time_ms=processing_time_ms,
+        enhanced_prompt=enhanced_prompt,
+    )
+
+    logger.debug("Operation successful - time: %d ms", processing_time_ms)
+
+    return ImageResponse(
+        status="success",
+        data=image_data,
+        metadata=metadata,
+        error=None,
+    )
+
+
+def _error_response(
+    prompt: str,
+    model: str,
+    size: str,
+    quality: str,
+    user: str,
+    response_format: str,
+    code: str,
+    message: str,
+    details: str = "",
+) -> ImageResponse:
+    """Build error response.
+
+    Args:
+        prompt: Original prompt
+        model: Model used
+        size: Image size
+        quality: Image quality
+        user: User identifier
+        response_format: Response format
+        code: Error code
+        message: Error message
+        details: Error details
+
+    Returns:
+        ImageResponse with error status
+    """
+    metadata = _build_response_metadata(
+        prompt, model, size, quality, user, response_format, 0
+    )
+    return ImageResponse(
+        status="error",
+        data=None,
+        metadata=metadata,
+        error=ErrorDetail(code=code, message=message, details=details),
+    )
 
 
 def get_generator(request: Request) -> OpenAIImageGenerator:
@@ -50,21 +140,6 @@ def get_generator(request: Request) -> OpenAIImageGenerator:
     return generator
 
 
-def extract_error_from_markdown(markdown: str) -> str | None:
-    """Extract error message from markdown response.
-
-    Args:
-        markdown: Markdown string that may contain error
-
-    Returns:
-        Error message or None if no error
-    """
-    match = re.search(r"❌ \*\*Error:\*\* (.*?)(?:\n|$)", markdown)
-    if match:
-        return match.group(1)
-    return None
-
-
 @router.post("/generate_image")
 async def generate_image_route(
     request: GenerationInput,
@@ -85,91 +160,37 @@ async def generate_image_route(
     start_time = time.time()
 
     logger.info(
-        "REST API: Generating image - user: %s, model: %s, n: %d",
-        request.user,
-        request.model,
-        request.n,
+        "REST API: Generating image - format: %s",
+        request.response_format,
     )
 
     try:
-        # Call shared implementation
-        markdown = await generate_image_impl(
-            prompt=request.prompt,
-            generator=generator,
-            model=request.model,
-            n=request.n,
-            size=request.size,
-            quality=request.quality,
-            user=request.user,
+        image_url, enhanced_prompt = await generate_image_impl(request, generator)
+        response_obj = await generate_response(
+            image_url, request.response_format, request.prompt
         )
 
-        # Check for errors in markdown
-        error_msg = extract_error_from_markdown(markdown)
-        if error_msg:
-            logger.warning("Generation failed: %s", error_msg)
-            raise GenerationError(error_msg)
-
-        processing_time = (time.time() - start_time) * 1000
-
-        metadata = ResponseMetadata(
-            prompt=request.prompt,
-            model=request.model,
-            n=request.n,
-            size=request.size,
-            quality=request.quality,
-            user=request.user,
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),  # noqa: UP017
-            processing_time_ms=int(processing_time),
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        return _build_success_response(
+            response_obj,
+            request.response_format,
+            request.prompt,
+            request.size,
+            processing_time_ms,
+            enhanced_prompt,
         )
 
-        logger.info(
-            "Generation successful - user: %s, time: %d ms",
-            request.user,
-            int(processing_time),
-        )
-
-        return ImageResponse(
-            status="success",
-            data=ImageData(images=[], markdown=markdown),
-            metadata=metadata,
-            error=None,
-        )
-
-    except GenerationError as e:
-        logger.warning("Generation error: %s", e.message)
-        return ImageResponse(
-            status="error",
-            data=None,
-            metadata=ResponseMetadata(
-                prompt=request.prompt,
-                model=request.model,
-                n=request.n,
-                size=request.size,
-                quality=request.quality,
-                user=request.user,
-            ),
-            error=ErrorDetail(code="GENERATION_FAILED", message=e.message, details=""),
-        )
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Unexpected error during generation: %s", e)
-        return ImageResponse(
-            status="error",
-            data=None,
-            metadata=ResponseMetadata(
-                prompt=request.prompt,
-                model=request.model,
-                n=request.n,
-                size=request.size,
-                quality=request.quality,
-                user=request.user,
-            ),
-            error=ErrorDetail(
-                code="INTERNAL_ERROR",
-                message="Internal server error",
-                details=str(e),
-            ),
+        return _error_response(
+            request.prompt,
+            request.size,
+            request.response_format,
+            "INTERNAL_ERROR",
+            "Internal server error",
+            str(e),
         )
 
 
@@ -193,92 +214,34 @@ async def edit_image_route(
     start_time = time.time()
 
     logger.info(
-        "REST API: Editing images - user: %s, model: %s, images: %d",
-        request.user,
-        request.model,
-        len(request.image_paths),
+        "REST API: Editing images - format: %s",
+        request.response_format,
     )
 
     try:
-        # Call shared implementation
-        markdown = await edit_image_impl(
-            prompt=request.prompt,
-            image_paths=request.image_paths,
-            generator=generator,
-            model=request.model,
-            mask_path=request.mask_path,
-            n=request.n,
-            size=request.size,
-            quality=request.quality,
-            output_format=request.output_format,
-            user=request.user,
+        image_url = await edit_image_impl(request, generator)
+        response_obj = await generate_response(
+            image_url, request.response_format, request.prompt
         )
 
-        # Check for errors in markdown
-        error_msg = extract_error_from_markdown(markdown)
-        if error_msg:
-            logger.warning("Editing failed: %s", error_msg)
-            raise GenerationError(error_msg)
-
-        processing_time = (time.time() - start_time) * 1000
-
-        metadata = ResponseMetadata(
-            prompt=request.prompt,
-            model=request.model,
-            n=request.n,
-            size=request.size,
-            quality=request.quality,
-            user=request.user,
-            timestamp=datetime.now(tz=timezone.utc).isoformat(),  # noqa: UP017
-            processing_time_ms=int(processing_time),
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        return _build_success_response(
+            response_obj,
+            request.response_format,
+            request.prompt,
+            request.size,
+            processing_time_ms,
         )
 
-        logger.info(
-            "Editing successful - user: %s, time: %d ms",
-            request.user,
-            int(processing_time),
-        )
-
-        return ImageResponse(
-            status="success",
-            data=ImageData(images=[], markdown=markdown),
-            metadata=metadata,
-            error=None,
-        )
-
-    except GenerationError as e:
-        logger.warning("Editing error: %s", e.message)
-        return ImageResponse(
-            status="error",
-            data=None,
-            metadata=ResponseMetadata(
-                prompt=request.prompt,
-                model=request.model,
-                n=request.n,
-                size=request.size,
-                quality=request.quality,
-                user=request.user,
-            ),
-            error=ErrorDetail(code="GENERATION_FAILED", message=e.message, details=""),
-        )
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Unexpected error during editing: %s", e)
-        return ImageResponse(
-            status="error",
-            data=None,
-            metadata=ResponseMetadata(
-                prompt=request.prompt,
-                model=request.model,
-                n=request.n,
-                size=request.size,
-                quality=request.quality,
-                user=request.user,
-            ),
-            error=ErrorDetail(
-                code="INTERNAL_ERROR",
-                message="Internal server error",
-                details=str(e),
-            ),
+        return _error_response(
+            request.prompt,
+            request.size,
+            request.response_format,
+            "INTERNAL_ERROR",
+            "Internal server error",
+            str(e),
         )

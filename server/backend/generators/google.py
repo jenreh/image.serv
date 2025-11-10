@@ -56,10 +56,12 @@ class GoogleImageGenerator(ImageGenerator):
     async def _perform_generation(
         self, input_data: GenerationInput
     ) -> ImageGeneratorResponse:
-        prompt = self._format_prompt(input_data.prompt, input_data.negative_prompt)
+        prompt = self._format_prompt(input_data.prompt, "")
+        enhanced_prompt: str | None = None
 
         if input_data.enhance_prompt:
-            prompt = self._enhance_prompt(prompt)
+            enhanced_prompt = self._enhance_prompt(prompt)
+            prompt = enhanced_prompt
 
         response = self.client.models.generate_images(
             model=self.model,
@@ -81,10 +83,15 @@ class GoogleImageGenerator(ImageGenerator):
             )
             images.append(image_url)
 
-        return ImageGeneratorResponse(state=ImageResponseState.SUCCEEDED, images=images)
+        return ImageGeneratorResponse(
+            state=ImageResponseState.SUCCEEDED,
+            images=images,
+            enhanced_prompt=enhanced_prompt,
+        )
 
     async def _perform_edit(self, input_data: EditImageInput) -> ImageGeneratorResponse:
         """Google Imagen does not support image editing."""
+        del input_data
         logger.warning("Image editing is not supported for %s", self.id)
         return ImageGeneratorResponse(
             state=ImageResponseState.FAILED,

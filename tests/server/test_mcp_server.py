@@ -3,11 +3,12 @@
 import base64
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 import respx
-from httpx import Response
-
 from server.backend.mcp_server import _edit_image, _generate_image, _url_to_base64
+
+import server.backend.utils as backend_utils
 from server.backend.models import ImageGeneratorResponse, ImageResponseState
 
 
@@ -326,7 +327,9 @@ class TestUrlToBase64Helper:
     async def test_http_url(self, sample_image_bytes: bytes) -> None:
         """Test downloading and converting HTTP URL."""
         url = "https://example.com/test.png"
-        respx.get(url).mock(return_value=Response(200, content=sample_image_bytes))
+        respx.get(url).mock(
+            return_value=httpx.Response(200, content=sample_image_bytes)
+        )
 
         result = await _url_to_base64(url)
 
@@ -347,6 +350,26 @@ class TestUrlToBase64Helper:
         assert decoded == sample_image_bytes
 
     @pytest.mark.asyncio
+    async def test_backend_upload_url(
+        self,
+        tmp_path,
+        sample_image_bytes: bytes,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test resolving backend upload URL without HTTP request."""
+        generated_file = tmp_path / "generated.png"
+        generated_file.write_bytes(sample_image_bytes)
+
+        monkeypatch.setattr(backend_utils, "TMP_PATH", str(tmp_path))
+
+        url = "http://localhost:8000/_upload/generated.png"
+        result = await _url_to_base64(url)
+
+        assert len(result) > 0
+        decoded = base64.b64decode(result)
+        assert decoded == sample_image_bytes
+
+    @pytest.mark.asyncio
     async def test_file_not_found(self) -> None:
         """Test error when file doesn't exist."""
         with pytest.raises(FileNotFoundError):
@@ -357,7 +380,7 @@ class TestUrlToBase64Helper:
     async def test_http_error(self) -> None:
         """Test error when HTTP request fails."""
         url = "https://example.com/notfound.png"
-        respx.get(url).mock(return_value=Response(404))
+        respx.get(url).mock(return_value=httpx.Response(404))
 
-        with pytest.raises(Exception):
+        with pytest.raises(httpx.HTTPStatusError):
             await _url_to_base64(url)

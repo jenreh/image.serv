@@ -62,32 +62,28 @@ class OpenAIImageGenerator(ImageGenerator):
         self, input_data: GenerationInput
     ) -> ImageGeneratorResponse:
         """Generate images using gpt-image-1 model."""
-        logger.info(
-            "Starting image generation: model=%s, n=%d, size=%s, quality=%s",
-            self.model,
-            input_data.n,
+        logger.debug(
+            "Starting image generation: size=%s",
             input_data.size,
-            input_data.quality,
         )
 
         # Prepare prompt
-        prompt = self._format_prompt(input_data.prompt, input_data.negative_prompt)
+        formatted_prompt = self._format_prompt(input_data.prompt, "")
+        prompt_to_use = formatted_prompt
+        enhanced_prompt: str | None = None
         if input_data.enhance_prompt:
-            logger.info("Prompt enhancement requested")
-            prompt = await self.prompt_enhancer.enhance(prompt)
+            logger.debug("Prompt enhancement requested")
+            prompt_to_use = await self.prompt_enhancer.enhance(formatted_prompt)
+            enhanced_prompt = prompt_to_use
 
         # Call API
         try:
             logger.debug("Calling OpenAI API")
             response = await self.client.images.generate(
                 model=self.model,
-                prompt=prompt,
-                n=input_data.n,
+                prompt=prompt_to_use,
                 size=input_data.size,
-                quality=input_data.quality,
-                moderation=input_data.moderation,
                 output_format=input_data.output_format,
-                output_compression=input_data.output_compression,
                 background=input_data.background,
             )
             logger.info("OpenAI API response received: %d images", len(response.data))
@@ -96,6 +92,7 @@ class OpenAIImageGenerator(ImageGenerator):
             return ImageGeneratorResponse(
                 state=ImageResponseState.FAILED,
                 images=[],
+                enhanced_prompt=enhanced_prompt,
                 error=f"API call failed: {e!s}",
             )
 
@@ -105,15 +102,18 @@ class OpenAIImageGenerator(ImageGenerator):
             images = await self.image_processor.save_and_return_images(
                 response.data, input_data.output_format
             )
-            logger.info("Successfully generated %d images", len(images))
+            logger.debug("Successfully generated %d images", len(images))
             return ImageGeneratorResponse(
-                state=ImageResponseState.SUCCEEDED, images=images
+                state=ImageResponseState.SUCCEEDED,
+                images=images,
+                enhanced_prompt=enhanced_prompt,
             )
         except Exception as e:
             logger.exception("Failed to process generated images")
             return ImageGeneratorResponse(
                 state=ImageResponseState.FAILED,
                 images=[],
+                enhanced_prompt=enhanced_prompt,
                 error=f"Failed to process images: {e!s}",
             )
 
@@ -123,12 +123,9 @@ class OpenAIImageGenerator(ImageGenerator):
 
     async def _perform_edit(self, input_data: EditImageInput) -> ImageGeneratorResponse:
         """Edit images using gpt-image-1 model."""
-        logger.info(
-            "Starting image editing: model=%s, n=%d, size=%s, quality=%s",
-            self.model,
-            input_data.n,
+        logger.debug(
+            "Starting image editing: size=%s",
             input_data.size,
-            input_data.quality,
         )
 
         # Load and prepare images
@@ -148,9 +145,8 @@ class OpenAIImageGenerator(ImageGenerator):
         mask_file = None
         if input_data.mask_path:
             try:
-                logger.info("Loading mask image: %s", input_data.mask_path)
                 mask_file = await self.image_processor.load_image(input_data.mask_path)
-                logger.info("Loaded mask image: %d bytes", len(mask_file))
+                logger.debug("Loaded mask image: %d bytes", len(mask_file))
             except Exception:
                 logger.exception("Failed to load mask image")
                 return ImageGeneratorResponse(
@@ -160,7 +156,7 @@ class OpenAIImageGenerator(ImageGenerator):
                 )
 
         # Prepare prompt
-        prompt = self._format_prompt(input_data.prompt, input_data.negative_prompt)
+        prompt = self._format_prompt(input_data.prompt, "")
 
         # Call edit API
         try:
@@ -169,19 +165,15 @@ class OpenAIImageGenerator(ImageGenerator):
                 "model": self.model,
                 "image": image_files,
                 "prompt": prompt,
-                "n": input_data.n,
                 "size": input_data.size,
-                "quality": input_data.quality,
                 "output_format": input_data.output_format,
-                "output_compression": input_data.output_compression,
-                "input_fidelity": input_data.input_fidelity,
                 "background": input_data.background,
             }
             if mask_file is not None:
                 api_kwargs["mask"] = mask_file
 
             response = await self.client.images.edit(**api_kwargs)
-            logger.info(
+            logger.debug(
                 "OpenAI edit API response received: %d images", len(response.data)
             )
         except Exception as e:
@@ -198,7 +190,7 @@ class OpenAIImageGenerator(ImageGenerator):
             images = await self.image_processor.save_and_return_images(
                 response.data, input_data.output_format
             )
-            logger.info("Successfully edited %d images", len(images))
+            logger.debug("Successfully edited %d images", len(images))
             return ImageGeneratorResponse(
                 state=ImageResponseState.SUCCEEDED, images=images
             )
