@@ -141,6 +141,87 @@ def backend_server() -> str:
     return os.environ.get("BACKEND_SERVER", "http://localhost:8000")
 
 
+# ============================================================================
+# API Route Fixtures (for REST endpoint testing)
+# ============================================================================
+
+
+@pytest.fixture
+def sample_generation_input() -> "GenerationInput":
+    """Create a sample GenerationInput for testing."""
+    from server.backend.models import GenerationInput
+
+    return GenerationInput(
+        prompt="A serene mountain landscape",
+        size="1024x1024",
+        output_format="png",
+        background="opaque",
+        response_format="image",
+        seed=42,
+        enhance_prompt=True,
+    )
+
+
+@pytest.fixture
+def sample_edit_input(sample_image_bytes: bytes) -> "EditImageInput":
+    """Create a sample EditImageInput for testing."""
+    from server.backend.models import EditImageInput
+
+    return EditImageInput(
+        image_paths=["https://example.com/test.png"],
+        prompt="Apply a filter",
+        size="1024x1024",
+        output_format="png",
+        response_format="image",
+    )
+
+
+@pytest.fixture
+def sample_image_response() -> "ImageGeneratorResponse":
+    """Create a sample ImageGeneratorResponse from generator."""
+    from server.backend.models import ImageGeneratorResponse, ImageResponseState
+
+    return ImageGeneratorResponse(
+        state=ImageResponseState.SUCCEEDED,
+        images=["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="],
+        enhanced_prompt="Enhanced: A serene mountain landscape at sunset",
+    )
+
+
+@pytest.fixture
+def mock_request(mock_openai_generator_instance: MagicMock) -> MagicMock:
+    """Create a mock FastAPI Request with app state containing generators."""
+    request = MagicMock()
+    request.app.state.generators = {
+        "gpt-image-1": mock_openai_generator_instance,
+    }
+    return request
+
+
+@pytest.fixture
+def mock_openai_generator_instance(mock_openai_client: AsyncMock) -> MagicMock:
+    """Create a mock OpenAIImageGenerator instance."""
+    from server.backend.generators.openai import OpenAIImageGenerator
+
+    generator = MagicMock(spec=OpenAIImageGenerator)
+    generator.id = "gpt-image-1"
+    generator.label = "OpenAI Image Generator"
+    generator.model = "gpt-image-1"
+    generator.generate = AsyncMock()
+    generator.edit = AsyncMock()
+    return generator
+
+
+@pytest.fixture
+def sample_mcp_image(sample_image_bytes: bytes) -> MagicMock:
+    """Create a mock fastmcp.utilities.types.Image object."""
+    image = MagicMock()
+    image.data = sample_image_bytes
+    image.mime_type = "image/png"
+    image.url = None
+    return image
+
+
 # Pytest configuration
 def pytest_configure(config: Any) -> None:
     """Register custom markers."""
