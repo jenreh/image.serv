@@ -100,7 +100,9 @@ def get_mcp_server(
         )
         image_url, enhanced_prompt = await generate_image_impl(input_data, generator)
 
-        return await generate_response(image_url, response_format, enhanced_prompt)
+        return await generate_response(
+            image_url, response_format, enhanced_prompt, output_format
+        )
 
     @mcp.tool(
         name="edit_image",
@@ -166,6 +168,8 @@ def get_mcp_server(
         )
         image_url = await edit_image_impl(input_data, generator)
 
-        return await generate_response(image_url, response_format, prompt)
+        return await generate_response(
+            image_url, response_format, prompt, output_format
+        )
 
     return mcp

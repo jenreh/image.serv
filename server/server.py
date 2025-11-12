@@ -23,6 +23,7 @@ from typing import Final
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from server.api.errors import register_exception_handlers
@@ -105,6 +106,15 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     redoc_url=None,
     lifespan=mcp_app.lifespan,
+)
+
+# Add CORS middleware to handle preflight requests for MCP
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.mount("/mcp", mcp_app)
