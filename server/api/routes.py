@@ -3,7 +3,6 @@
 import json
 import logging
 import time
-from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -28,32 +27,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _build_response_metadata(
-    prompt: str,
-    size: str,
-    response_format: str,
-    processing_time_ms: int = 0,
-    enhanced_prompt: str | None = None,
-) -> ResponseMetadata:
-    """Build response metadata.
+def _build_image_data(response_obj: str | object, response_format: str) -> ImageData:
+    """Format response data based on requested format.
 
     Args:
-        prompt: Original prompt
-        size: Image size
-        response_format: Response format
-        processing_time_ms: Processing time in milliseconds
-        enhanced_prompt: Enhanced/refined prompt if available
+        response_obj: Formatted response object from generate_response
+        response_format: Requested format ("image", "adaptive_card", or "markdown")
 
     Returns:
-        ResponseMetadata object
+        ImageData with appropriate content
     """
-    return ResponseMetadata(
-        prompt=prompt,
-        enhanced_prompt=enhanced_prompt,
-        size=size,
-        response_format=response_format,
-        processing_time_ms=processing_time_ms,
-    )
+    match response_format:
+        case "image":
+            return ImageData(images=[response_obj.data])
+        case "adaptive_card":
+            return ImageData(adaptive_card=json.loads(response_obj))
+        case _:  # "markdown"
+            return ImageData(markdown=response_obj)
 
 
 def _build_success_response(
@@ -70,45 +60,31 @@ def _build_success_response(
         response_obj: Formatted response object from generate_response
         response_format: Requested format ("image", "adaptive_card", or "markdown")
         prompt: Original prompt
-        model: Model used
         size: Image size
-        quality: Image quality
-        user: User identifier
         processing_time_ms: Processing time in milliseconds
         enhanced_prompt: Enhanced/refined prompt if available
 
     Returns:
         ImageResponse with success status
     """
-    # Format response data based on format type
-    if response_format == "image":
-        image_data = ImageData(images=[response_obj.data])
-    elif response_format == "adaptive_card":
-        image_data = ImageData(adaptive_card=json.loads(response_obj))
-    else:
-        image_data = ImageData(markdown=response_obj)
-
-    # Build metadata
     metadata = ResponseMetadata(
         prompt=prompt,
+        enhanced_prompt=enhanced_prompt,
         size=size,
         response_format=response_format,
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),  # noqa: UP017
         processing_time_ms=processing_time_ms,
-        enhanced_prompt=enhanced_prompt,
     )
 
     logger.debug("Operation successful - time: %d ms", processing_time_ms)
 
     return ImageResponse(
         status="success",
-        data=image_data,
+        data=_build_image_data(response_obj, response_format),
         metadata=metadata,
-        error=None,
     )
 
 
-def _error_response(
+def _build_error_response(
     prompt: str,
     size: str,
     response_format: str,
@@ -129,15 +105,13 @@ def _error_response(
     Returns:
         ImageResponse with error status
     """
-    metadata = _build_response_metadata(
+    metadata = ResponseMetadata(
         prompt=prompt,
         size=size,
         response_format=response_format,
-        processing_time_ms=0,
     )
     return ImageResponse(
         status="error",
-        data=None,
         metadata=metadata,
         error=ErrorDetail(code=code, message=message, details=details),
     )
@@ -185,8 +159,9 @@ async def generate_image_route(
     start_time = time.time()
 
     logger.info(
-        "REST API: Generating image - format: %s",
+        "Generating image - format: %s, size: %s",
         request.response_format,
+        request.size,
     )
 
     try:
@@ -199,7 +174,7 @@ async def generate_image_route(
         return _build_success_response(
             response_obj,
             request.response_format,
-            enhanced_prompt,
+            request.prompt,
             request.size,
             processing_time_ms,
             enhanced_prompt,
@@ -208,8 +183,8 @@ async def generate_image_route(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Unexpected error during generation: %s", e)
-        return _error_response(
+        logger.exception("Unexpected error during image generation: %s", e)
+        return _build_error_response(
             request.prompt,
             request.size,
             request.response_format,
@@ -239,8 +214,9 @@ async def edit_image_route(
     start_time = time.time()
 
     logger.info(
-        "REST API: Editing images - format: %s",
+        "Editing images - format: %s, size: %s",
         request.response_format,
+        request.size,
     )
 
     try:
@@ -261,8 +237,8 @@ async def edit_image_route(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Unexpected error during editing: %s", e)
-        return _error_response(
+        logger.exception("Unexpected error during image editing: %s", e)
+        return _build_error_response(
             request.prompt,
             request.size,
             request.response_format,

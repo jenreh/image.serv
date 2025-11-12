@@ -135,6 +135,7 @@ class OpenAIImageGenerator(ImageGenerator):
 
 ## 6) Testing Strategy
 - Tests in `tests/server/**/*.py` (mirrors source structure).
+- Tests in `tests/integration/**/*.py` for end-to-end scenarios. Exclude when running the test suite.
 - Use `@pytest.mark.asyncio` for all async tests.
 - Mock external APIs (OpenAI, Google) in `conftest.py`.
 - Coverage target **≥ 80%**.

@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 
 from server.api.models import ImageResponse
 from server.api.routes import (
+    _build_error_response,
     _build_success_response,
-    _error_response,
     edit_image_route,
     generate_image_route,
     get_generator,
@@ -161,7 +161,7 @@ class TestErrorResponse:
 
     def test_error_response_creation(self) -> None:
         """Test creating error response."""
-        response = _error_response(
+        response = _build_error_response(
             prompt="test prompt",
             size="1024x1024",
             response_format="image",
@@ -179,7 +179,7 @@ class TestErrorResponse:
 
     def test_error_response_without_details(self) -> None:
         """Test error response without additional details."""
-        response = _error_response(
+        response = _build_error_response(
             prompt="test",
             size="1024x1024",
             response_format="image",
