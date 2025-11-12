@@ -1,16 +1,34 @@
 # Image Generation MCP Server
 
-FastMCP server for image generation and editing using **gpt-image-1** and **FLUX.1-Kontext-pro** models.
+A FastMCP server for generating and editing images using OpenAI's **gpt-image-1** and
+Azure **FLUX.1-Kontext-pro** models. Deploy as an MCP tool or use REST endpoints for
+flexible integration with AI assistants and applications.
 
 ## Features
 
-- **Image Generation**: Create images from text prompts using OpenAI's gpt-image-1 or Google's FLUX.1-Kontext-pro
-- **Image Editing**: Edit existing images with prompts and optional masks (gpt-image-1 only)
-- **Multi-Image Support**: Edit up to 16 images simultaneously
-- **Inpainting**: Use mask images to specify edit regions
-- **Flexible Output**: PNG, JPEG, or WEBP formats with customizable quality and compression
+- **Text-to-Image Generation**: Create images from natural language prompts using multiple AI models
+- **Image Editing & Inpainting**: Edit existing images with text prompts and optional masks (gpt-image-1)
+- **Multiple Formats**: Output as PNG, JPEG, or WEBP with customizable quality
+- **Flexible Response Formats**: Receive results as MCP Images, Markdown, or Microsoft Adaptive Cards
+- **Prompt Enhancement**: Auto-refine prompts via LLM for better results
+- **Dual Protocol**: Access via MCP protocol for AI assistants or REST API for direct integration
 
-## Installation
+## Quick Start
+
+### Prerequisites
+
+- Python 3.12 or later
+- [**uv**](https://docs.astral.sh/uv/) package manager
+- API keys for image generation:
+
+### Installation
+
+1. Clone and navigate to the project:
+
+```bash
+git clone <repository>
+cd image.serv
+```
 
 1. Install dependencies:
 
@@ -18,130 +36,243 @@ FastMCP server for image generation and editing using **gpt-image-1** and **FLUX
 uv sync
 ```
 
-2. Set up environment variables:
+1. Configure environment variables:
 
 ```bash
 # Required for gpt-image-1
-export OPENAI_API_KEY="your_api_key"
-export OPENAI_BASE_URL="https://your-azure-endpoint.openai.azure.com"
+export OPENAI_API_KEY="your-openai-api-key"
+export OPENAI_BASE_URL="https://your-azure-endpoint.openai.azure.com" # when using Azure
 
-# Optional for FLUX.1-Kontext-pro
-export GOOGLE_API_KEY="your_google_api_key"
-
-# Required for image storage
-export BACKEND_SERVER="http://localhost:8000"
-export TMP_PATH="/tmp/app_images"
+# Image storage (optional)
+export BACKEND_SERVER="http://localhost:8000" # for download URL generation
+export TMP_PATH="./images"                    # for generated images
 ```
 
 ## Usage
 
 ### Running the Server
 
-```bash
-cd app/backend
-python mcp_server.py
-```
-
-Or use with FastMCP:
+Start the server for integration with Claude Desktop or other MCP clients:
 
 ```bash
-fastmcp run app.backend.mcp_server
+uv run python -m server.server
 ```
+
+The server will be available at `http://localhost:8000` with endpoints:
+
+- `POST /api/v1/generate_image` - Generate images
+- `POST /api/v1/edit_image` - Edit existing images
+- `/api/docs` - OpenAPI Documenation
 
 ### MCP Configuration
 
-Add to your MCP settings (e.g., Claude Desktop):
-
 ```json
 {
-  "mcpServers": {
-    "image-generation": {
-      "command": "uv",
-      "args": ["run", "python", "app/backend/mcp_server.py"],
-      "cwd": "/path/to/image.serv",
-      "env": {
-        "OPENAI_API_KEY": "your_key",
-        "OPENAI_BASE_URL": "your_endpoint",
-        "BACKEND_SERVER": "http://localhost:8000"
-      }
+    "servers": {
+        "image-generation": {
+            "type": "http",
+            "url": "http://localhost:8000/mcp/v1",
+            "gallery": true
+        }
     }
-  }
 }
 ```
 
-## Tools
+## Tools & API
 
-### 1. generate_image
+### generate_image
 
-Generate images from text prompts.
+Create images from text descriptions.
 
 **Parameters:**
 
-- `prompt` (required): Text description of the desired image (max 32000 chars)
-- `model`: "gpt-image-1" or "FLUX.1-Kontext-pro" (default: "gpt-image-1")
-- `n`: Number of images to generate (1-10, default: 1)
-- `size`: Image dimensions - "1024x1024", "1536x1024", "1024x1536", or "auto" (default: "auto")
-- `quality`: Quality level - "low", "medium", "high", or "auto" (default: "auto")
-- `user`: User identifier for monitoring (default: "default")
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `prompt` | string | required | Image description (max 32,000 chars) |
+| `size` | string | `auto` | Dimensions: `1024x1024`, `1536x1024`, `1024x1536`, or `auto` |
+| `output_format` | string | `jpeg` | Output format: `png`, `jpeg`, or `webp` |
+| `seed` | integer | `0` | Random seed for reproducibility (0 = random) |
+| `enhance_prompt` | boolean | `true` | Auto-enhance prompt via LLM |
+| `response_format` | string | `image` | Response type: `image`, `markdown`, or `adaptive_card` |
+| `background` | string | `auto` | Background: `transparent`, `opaque`, or `auto` |
 
 **Example:**
 
 ```python
 generate_image(
-    prompt="A serene mountain landscape at sunset",
-    model="gpt-image-1",
-    n=2,
+    prompt="A serene mountain landscape at sunset with golden light reflecting off a lake",
     size="1536x1024",
-    quality="high"
+    output_format="png",
+    enhance_prompt=True,
+    response_format="markdown"
 )
 ```
 
-**Returns:** Markdown with base64-encoded images
+### edit_image
 
-### 2. edit_image
-
-Edit existing images with text prompts and optional masks.
+Edit existing images with text prompts and optional masks for inpainting.
 
 **Parameters:**
 
-- `prompt` (required): Text description of desired edits (max 32000 chars)
-- `image_paths` (required): List of image URLs, file paths, or base64 data URLs (max 16)
-- `model`: Must be "gpt-image-1" (only model supporting editing)
-- `mask_path`: Optional mask image for inpainting (PNG with alpha channel)
-- `n`: Number of edited variations (1-10, default: 1)
-- `size`: Output dimensions (default: "auto")
-- `quality`: Output quality (default: "auto")
-- `output_format`: "png", "jpeg", or "webp" (default: "png")
-- `user`: User identifier (default: "default")
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `prompt` | string | required | Description of desired edits (max 32,000 chars) |
+| `image_paths` | array | required | Image URLs, file paths, or base64 data URLs (max 16) |
+| `mask_path` | string | optional | PNG mask for inpainting (transparent = edit zones) |
+| `size` | string | `auto` | Output dimensions |
+| `output_format` | string | `jpeg` | Output format: `png`, `jpeg`, or `webp` |
+| `background` | string | `auto` | Background setting |
+| `response_format` | string | `image` | Response type: `image`, `markdown`, or `adaptive_card` |
 
 **Example:**
 
 ```python
 edit_image(
-    prompt="Add a rainbow in the sky",
+    prompt="Add a vibrant rainbow across the sky",
     image_paths=["https://example.com/landscape.jpg"],
     mask_path="https://example.com/sky_mask.png",
-    model="gpt-image-1",
-    quality="high",
-    output_format="png"
+    output_format="png",
+    response_format="markdown"
 )
 ```
 
-**Returns:** Markdown with base64-encoded edited images
-
 ## Image Input Formats
 
-The server supports three input formats for images:
+Supported input methods for `image_paths` parameter:
 
-1. **URLs**: `https://example.com/image.jpg`
-2. **File paths**: `/path/to/image.png`
-3. **Base64 data URLs**: `data:image/png;base64,iVBORw0KG...`
+- **HTTP/HTTPS URLs**: `https://example.com/image.jpg`
+- **Local file paths**: `/path/to/image.png`
+- **Base64 data URLs**: `data:image/png;base64,iVBORw0KG...`
 
-## Masks for Inpainting
+## Inpainting with Masks
 
-For selective editing with masks:
+For precise control over edits, use mask images:
 
-1. Create a PNG image with transparency
-2. Fully transparent areas (alpha=0) indicate regions to edit
+1. Create a PNG image with alpha transparency
+2. Transparent areas (alpha=0) mark regions to edit
 3. Opaque areas remain unchanged
-4. Mask must have same dimensions as input image
+4. Mask dimensions must match the input image
+
+## Architecture
+
+The server follows a clean, layered architecture:
+
+```
+MCP Client / REST Client
+    ↓
+FastMCP Server / FastAPI Routes
+    ↓
+Image Service Layer
+    ↓
+Image Generators (OpenAI, Google)
+    ├── Prompt Enhancer
+    ├── Image Processor
+    └── Image Loader
+```
+
+### Key Components
+
+- **mcp_server.py** - FastMCP tool definitions and server setup
+- **server.py** - Unified MCP + REST API server
+- **api/routes.py** - FastAPI REST endpoints
+- **backend/image_service.py** - Core business logic
+- **backend/generators/** - AI provider implementations
+  - `openai.py` - OpenAI gpt-image-1 integration
+
+## Development
+
+### Running Tests
+
+```bash
+make test
+```
+
+Run with coverage:
+
+```bash
+make test-coverage
+```
+
+### Code Quality
+
+Format and lint code:
+
+```bash
+make format
+make check
+```
+
+### Available Commands
+
+```bash
+make help
+```
+
+## Response Formats
+
+All endpoints support three response formats via the `response_format` parameter:
+
+### Image Format
+
+Returns raw image data suitable for display or processing.
+
+### Markdown Format
+
+Returns formatted markdown with embedded base64 images:
+
+```markdown
+# Generated Image
+
+![Generated Image](http://localhost:8000/_uploads/...)
+```
+
+### Adaptive Card Format
+
+Returns Microsoft Adaptive Card JSON for Teams or other platforms:
+
+```json
+{
+  "type": "AdaptiveCard",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "Image",
+      "url": "http://localhost:8000/_uploads/..."
+    }
+  ]
+}
+```
+
+## Error Handling
+
+The API returns standard HTTP status codes:
+
+- `200 OK` - Successful generation/editing
+- `400 Bad Request` - Invalid parameters
+- `422 Unprocessable Entity` - Validation error
+- `500 Internal Server Error` - API failure
+
+Error responses include detailed messages:
+
+```json
+{
+  "status": "error",
+  "error": "Description of what went wrong",
+  "metadata": {
+    "timestamp": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `OPENAI_API_KEY` | Yes | - | Azure OpenAI API key |
+| `OPENAI_BASE_URL` | Yes | - | Azure OpenAI endpoint URL |
+| `BACKEND_SERVER` | No | `http://localhost:8000` | Backend server URL for image URLs |
+| `TMP_PATH` | No | `./images` | Directory for storing generated images |
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE.md](LICENSE.md) for details.
