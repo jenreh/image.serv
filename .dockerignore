@@ -2,6 +2,7 @@
 .coverage
 .coverage.*
 .devcontainer
+.env
 .git
 .github
 .hypothesis
@@ -23,6 +24,8 @@
 **/*.pyo
 coverage.xml
 docs
+htmlcov
+images
 infra
 Makefile
 nosetests.xml

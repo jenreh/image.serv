@@ -1,7 +1,7 @@
 [project]
 name = "image.serv"
-version = "0.1.0"
-description = "Image generating MCP service"
+version = "0.2.0"
+description = "Image generating and editing MCP service"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
