@@ -28,6 +28,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _build_response_metadata(
+    prompt: str,
+    size: str,
+    response_format: str,
+    processing_time_ms: int = 0,
+    enhanced_prompt: str | None = None,
+) -> ResponseMetadata:
+    """Build response metadata.
+
+    Args:
+        prompt: Original prompt
+        size: Image size
+        response_format: Response format
+        processing_time_ms: Processing time in milliseconds
+        enhanced_prompt: Enhanced/refined prompt if available
+
+    Returns:
+        ResponseMetadata object
+    """
+    return ResponseMetadata(
+        prompt=prompt,
+        enhanced_prompt=enhanced_prompt,
+        size=size,
+        response_format=response_format,
+        processing_time_ms=processing_time_ms,
+    )
+
+
 def _build_success_response(
     response_obj: str | object,
     response_format: str,
@@ -82,10 +110,7 @@ def _build_success_response(
 
 def _error_response(
     prompt: str,
-    model: str,
     size: str,
-    quality: str,
-    user: str,
     response_format: str,
     code: str,
     message: str,
@@ -95,10 +120,7 @@ def _error_response(
 
     Args:
         prompt: Original prompt
-        model: Model used
         size: Image size
-        quality: Image quality
-        user: User identifier
         response_format: Response format
         code: Error code
         message: Error message
@@ -108,7 +130,10 @@ def _error_response(
         ImageResponse with error status
     """
     metadata = _build_response_metadata(
-        prompt, model, size, quality, user, response_format, 0
+        prompt=prompt,
+        size=size,
+        response_format=response_format,
+        processing_time_ms=0,
     )
     return ImageResponse(
         status="error",

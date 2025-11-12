@@ -1,482 +1,233 @@
 ---
 applyTo: "**"
-description: "Main Copilot instructions for the appkit project - Reflex-Mantine component library with comprehensive development workflow and architecture guidelines"
+description: "Main Copilot instructions for image.serv - FastMCP server for image generation/editing with comprehensive development workflow"
 ---
 
-# Reflex-Mantine Component Library
+# Image Generation MCP Server
 
-**A comprehensive Reflex wrapper library for Mantine UI components with production-ready examples.**
+**FastMCP server for image generation and editing using gpt-image-1 and FLUX.1-Kontext-pro models.**
 
-> **Purpose:** Guide GitHub Copilot & Copilot Chat to align suggestions with our tech stack, workflows, and quality bars.
-> **Stacks:** Python 3.13 · Reflex (UI) · FastAPI · SQLAlchemy 2.0 · Alembic · Pydantic · FastMCP · LangChain
+> **Purpose:** Guide GitHub Copilot to align suggestions with this FastMCP+FastAPI project's tech stack, workflows, and quality standards.
+> **Stacks:** Python 3.12+ · FastMCP · FastAPI · OpenAI/Azure · Google Genai · Pydantic
 
 ---
 
 ## 1) Golden Rules (Short, Actionable)
-1. **Think → Memory → Tools → Code → Memory.** Start with step-by-step reasoning (using the tool code-reasoning); **search Memory first**; pick tools; code minimal diff; **write learnings back to Memory**.
-2. **Tests are truth.** On failures: **fix code first**. Change tests only if they clearly diverge from spec.
-3. **Small, safe changes.** Prefer smallest viable diff; add tests for new behavior **before** code.
-4. **Consistency > cleverness.** Follow this file’s SOPs and stack idioms.
-5. **Memory multiplies.** Persist decisions, patterns, error signatures, and proven fixes.
-6. Do not generate extensive documentation, summaries or comments unless explicitly requested.
+1. **Separation of concerns:** MCP server layer (`mcp_server.py`) → FastAPI routes (`api/routes.py`) → backend logic (`backend/`) → generators (OpenAI, Google).
+2. **Tests are truth.** Async tests use `@pytest.mark.asyncio`; mock generators/clients in `conftest.py`. On failures: fix code first.
+3. **No f-strings in logging.** Use parameterized logging: `log.info("Items: %d", count)` not `log.info(f"Items: {count}")`.
+4. **Async-first.** All generators and services are async; use `async def` and `await` throughout.
+5. **Pydantic for validation.** All inputs use Pydantic models (`GenerationInput`, `EditImageInput`, etc.) for type safety and docs.
+6. **Composition over inheritance.** Generators use helper classes (`PromptEnhancer`, `ImageProcessor`) not deep hierarchies.
+7. **NEVER** create files using "cat" or similar shell commands, NEVER! Use Python file I/O methods.
+8. **NEVER** generate summary files and the end of a task. Keep the summaries brief and to the point.
 
-> Rule of thumb: prefer *local* changes over cross-module refactors.
+> Focus: input → generator → response format (image/markdown/adaptive_card).
 
 ---
 
-## 2) Task Bootstrap Pattern (for Inline Copilot & Chat)
-Paste/edit this at the top of the change (as a comment) to steer Copilot:
+## 2) Architecture Overview
 
-```markdown
-<!-- plan:start
-goal: <one line clear goal>
-constraints:
-- Python 3.13; Reflex UI; FastAPI; SQLAlchemy 2.0; Alembic; Pydantic
-- logging: no f-strings in logger calls
-- minimal diff; add/adjust tests first
-definition_of_done:
-- tests pass; coverage ≥ 80%; lint/type checks clean; memory updated
-steps:
-1) Search Memory for "<keywords>"
-2) Draft/adjust failing test to capture expected behavior
-3) Implement minimal code change
-4) Run make test; iterate until green
-5) Update Memory: decisions, patterns, error→fix
-plan:end -->
+### Core Layers (Request Flow)
 ```
+MCP Client (Claude, etc.)
+    ↓
+mcp_server.py [FastMCP tools: generate_image, edit_image]
+    ↓
+api/routes.py [FastAPI REST endpoints: /generate, /edit]
+    ↓
+backend/image_service.py [Service layer: generate_image_impl, edit_image_impl]
+    ↓
+backend/generators/ [Provider implementations: OpenAIImageGenerator, GoogleImageGenerator]
+    ├─ prompt_enhancer.py [Refines prompts via LLM]
+    ├─ image_processor.py [Converts formats, saves to backend]
+    ├─ image_loaders.py [Loads images: URL, file, base64]
+    └─ utils.py [generate_response: formats image as image/markdown/adaptive_card]
+```
+
+### Response Format Routing
+```python
+# All endpoints support 3 response formats via response_format parameter:
+- "image": returns MCP Image object (bytes)
+- "markdown": returns markdown string with embedded image
+- "adaptive_card": returns Microsoft Adaptive Card JSON
+```
+
+### Key Models (Input/Output)
+- **Input:** `GenerationInput` (prompt, size, enhance_prompt, etc.), `EditImageInput` (image_paths, mask_path, etc.)
+- **Output:** `ImageGeneratorResponse` (state, images[], enhanced_prompt)
+- **API Response:** `ImageResponse` (status, data{images/markdown/adaptive_card}, metadata, error)
 
 ---
 
 ## 3) Tooling Decision Matrix (Condensed)
 
-| Situation | Primary | Secondary | Store to Memory |
-|---|---|---|---|
-| API/pattern uncertainty | **Context7** | — | Canonical snippet + link; edge cases |
-| Ecosystem bug/issue | **DuckDuckGo** | — | Minimal repro; versions; workaround |
-| Repeated test failure | **Memory (search)** | Context7 | Error signature → fix; root cause |
-| New feature scaffold | **Context7** | — | How‑to snippet; checklist |
-| House style/tooling | **This file** | Context7 | Checklist results |
+| Situation | Primary | Use For |
+|---|---|---|
+| Generator API uncertainty | **Context7** | OpenAI/Google SDK docs; response formats |
+| Test fixture issues | **conftest.py** | Mock patterns in this project |
+| Async pattern questions | **server/backend/generators/** | Real implementations; use as reference |
+| Response format routing | **backend/utils.py** | generate_response() implementation |
+| New generator scaffold | **OpenAIImageGenerator** | Inherit from ImageGenerator; implement generate/edit |
 
-**Prefer official docs; widen via web search when cross-version issues arise.**
+**Baseline: Always check conftest.py fixtures and existing generators before adding new patterns.**
 
 ---
 
 ## 4) SOP — Development Workflow
 
 ### Prepare
-1. **Memory first:** search for prior solutions and patterns.
-2. **Reasoning plan:** use the *Task Bootstrap Pattern*.
-3. **Sync tools:** `make install` (uses **uv**, Python 3.13).
-4. **Baseline:** `make test` to snapshot current failures.
+1. **Understand the flow:** Input model → Generator (async) → Response formatter → Client receives.
+2. **Sync tools:** `make install` (uses **uv**, Python 3.12+).
+3. **Baseline:** `make test` to snapshot current state.
 
-### Triage Failures
-- Read the **first** failing assertion; map to spec.
-- If tests match spec → fix code. If tests diverge → document and adjust spec/tests (after approval).
-- Add/adjust unit tests to codify expected behavior.
+### Testing Pattern (Critical)
+All new code must include async tests with mocks:
+```python
+@pytest.mark.asyncio
+async def test_generator_behavior() -> None:
+    """Test async generator with mocked client."""
+    generator = AsyncMock()
+    generator.generate.return_value = ImageGeneratorResponse(
+        state=ImageResponseState.SUCCEEDED,
+        images=["data:image/png;base64,..."],
+        enhanced_prompt="Refined"
+    )
+    result = await generate_image_impl(input_data, generator)
+    assert result[1] == "Refined"  # enhanced_prompt
+```
 
-### Implement (Minimal Diff)
-- Tests-first for new behavior.
-- Use only approved stacks. Examples:
-  - **Logging (no f-strings):**
-    ```python
-    import logging
-    log = logging.getLogger(__name__)
-    log.info("Loaded items: %d", count)      # ✅
-    # log.info(f"Loaded items: {count}")     # ❌
-    ```
+### Response Format Routing
+When adding features, ensure all 3 formats are supported:
+```python
+# In routes.py - call generate_response() with appropriate format
+response_obj = await generate_response(
+    image_bytes,
+    format=input_data.response_format  # "image", "markdown", or "adaptive_card"
+)
+```
 
-### Reflex UI
-- Small components; separate **state** from **view**.
-- Deterministic state transitions; avoid hidden side effects.
-- Reuse components; document patterns in **Memory**.
+### Generators: Composition Pattern
+Add helpers, don't inherit:
+```python
+class OpenAIImageGenerator(ImageGenerator):
+    def __init__(self, api_key, ...):
+        self.prompt_enhancer = PromptEnhancer(self.client)  # ✅ Composition
+        self.image_processor = ImageProcessor(self)  # ✅ Composition
+```
 
 ### Quality Gates
-- Lint/format/type: `uv run ruff check --fix`, `uv run ruff format`.
-- Tests: `uv run pytest` with coverage ≥ **80%**.
-- Docs: update `docs/` for migrations/decisions.
-
+- Lint/format: `make check` and `make format`
+- Tests: `make test` with coverage ≥ **80%**
+- No f-strings in logger calls (use `log.info("Value: %s", var)`)
 
 ### Commit & PR
 - Conventional Commits (`feat:`, `fix:`, `refactor:`…).
-- PR must include: description, `Closes #123`, UI screenshots, migration rationale.
-
-### Learn
-- Reflect; extract learnings; write to **Memory**.
-
----
+- PR includes: description, model/endpoint tested, test coverage increase.
 
 ## 5) Code Generation Rules
-- **Python 3.13** only; deps via **uv**.
-- Use Reflex, Alembic, SQLAlchemy 2.0, FastAPI, Pydantic, FastMCP, LangChain.
+- **Python 3.12+** only; deps via **uv**.
+- Use FastMCP, FastAPI, Pydantic, OpenAI SDK, Google Genai.
 - **No f-strings in logger calls.**
-- Clean code; narrow modules; clear boundaries.
-- Unit tests for every new path.
-
----
+- All I/O is async (`async def`, `await`).
+- Input validation via Pydantic models.
+- Unit tests for every new endpoint/generator method.
 
 ## 6) Testing Strategy
-- Tests in `tests/test_*.py`; isolate units; avoid coupling.
+- Tests in `tests/server/**/*.py` (mirrors source structure).
+- Use `@pytest.mark.asyncio` for all async tests.
+- Mock external APIs (OpenAI, Google) in `conftest.py`.
 - Coverage target **≥ 80%**.
-- Write regression tests first when fixing bugs.
-- Use fixtures for env/config swaps.
+- Fixtures: `sample_image_bytes`, `mock_openai_client`, `mock_google_client` provided in `conftest.py`.
 
 ## 7) Search SOPs
-- **Context7 first** for framework truths; cite sources in **Memory**.
-- **DuckDuckGo** for cross-version issues; prefer official docs, well-known repos.
-- Capture only the **final answer** in **Memory**: minimal snippet + rationale + version pins + link.
+- **Context7 first** for OpenAI/Google SDK docs.
+- **DuckDuckGo** for cross-version issues.
+- Check `tests/conftest.py` for fixture patterns before adding new ones.
 
 ## 8) Security & Config Hygiene
-- No credentials in code/history; use `.env` locally, Key Vault in prod.
-- Prefer non-secret YAML; override with env `__` pattern.
-- Parameterized logs; avoid sensitive values.
-- Update vulnerable deps promptly; document CVE-driven updates in commits and **Memory**.
+- No credentials in code; use `.env` locally, environment variables in prod.
+- API keys loaded from `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_BASE_URL` environment variables.
+- Parameterized logs; avoid logging sensitive values.
+- Update vulnerable deps promptly.
 
----
-
-## 9) Pre‑PR Checklist
-- [ ] Tests added/updated; all green
-- [ ] Lint/format/type checks pass
-- [ ] Migrations reviewed & documented
-- [ ] **Memory updated** (decisions, patterns, error→fix links)
-- [ ] PR description complete; links/screenshots added
+## 9) Pre-PR Checklist
+- [ ] Tests added/updated; all green (`make test`)
+- [ ] Lint/format checks pass (`make check`, `make format`)
+- [ ] Coverage ≥ 80%
+- [ ] PR description includes: endpoint/method tested, test coverage delta
+- [ ] No f-strings in logger calls
 
 
 ---
 
-# Project Architecture
+# Key Patterns & Integration Points
 
-This is a **Reflex component library** wrapping [Mantine UI v8.3.3](https://mantine.dev) for Python web apps. Structure:
+## Generator Pattern (Composition-Based)
 
-- `mantine/` – Core component wrappers (Input, DateInput, NumberInput, PasswordInput, Textarea, NavigationProgress, etc.)
-- `mantine/base.py` – Base classes (`MantineComponentBase`, `MantineInputComponentBase`) with inheritance hierarchy
-- `reflex_mantine/` – Demo app with example pages showing component usage patterns
-- `docs/` – Comprehensive usage guides and API references
-- `assets/` – JavaScript shims for Mantine integration (MantineProvider, NavigationProgress)
-
-### Key Design Principle: Inheritance-Based Architecture
-
-**ALL Mantine input components inherit from `MantineInputComponentBase`**, eliminating code duplication:
+**All image generators inherit from `ImageGenerator` base class and compose helper services:**
 
 ```python
-# Base class provides ~40 common props for free
-class MantineInputComponentBase(MantineComponentBase):
-    # Input.Wrapper props (label, description, error, required, with_asterisk)
-    # Visual variants (variant, size, radius)
-    # State props (value, default_value, placeholder, disabled)
-    # HTML attributes (name, id, aria_label, max_length, pattern, etc.)
-    # Section props (left_section, right_section with widths and pointer_events)
-    # Mantine style props (w, maw, m, mt, mb, ml, mr, mx, my, p, etc.)
-    # Event handlers (on_change, on_focus, on_blur, on_key_down, on_key_up)
+class OpenAIImageGenerator(ImageGenerator):
+    def __init__(self, api_key: str, ...):
+        self.client = AsyncAzureOpenAI(...)
+        self.prompt_enhancer = PromptEnhancer(self.client)  # Helper
+        self.image_processor = ImageProcessor(self)        # Helper
+
+    async def generate(self, input_data: GenerationInput) -> ImageGeneratorResponse:
+        """Main entry point - orchestrates helpers."""
+        pass
 ```
 
-**When creating new components, only define component-specific props:**
+**To add a new generator:** Copy `OpenAIImageGenerator` structure, implement `generate()` and `edit()` methods.
+
+## Request → Response Flow
+
+1. **MCP Tool** (`mcp_server.py::generate_image`) receives `prompt`, `response_format`, etc.
+2. **Route Handler** (`api/routes.py`) validates input → calls service
+3. **Service** (`image_service.py`) calls generator.generate(input_data)
+4. **Generator** uses helpers:
+   - `PromptEnhancer.enhance()` – LLM-based prompt refinement
+   - `ImageProcessor.save()` – Format conversion & storage
+   - `ImageLoader.load()` – Handles URL/file/base64 sources
+5. **Response Formatter** (`utils.py::generate_response()`) wraps in requested format
+6. **Client** receives Image, markdown, or Adaptive Card JSON
+
+## Testing Mocks Pattern
+
+All tests mock external APIs in `conftest.py`:
 
 ```python
-# ✅ Correct - only unique props
-class NumberInput(MantineInputComponentBase):
-    tag = "NumberInput"
-    min: Var[int | float] = None
-    max: Var[int | float] = None
-    decimal_scale: Var[int] = None
-    # All common props inherited automatically
-
-# ❌ Wrong - don't redeclare inherited props
-class BadInput(MantineInputComponentBase):
-    tag = "BadInput"
-    label: Var[str] = None  # Already in base class!
-    placeholder: Var[str] = None  # Already in base class!
+@pytest.fixture
+def mock_openai_client() -> AsyncMock:
+    client = AsyncMock()
+    mock_gen_response = MagicMock()
+    mock_gen_response.data = [MagicMock(b64_json="dGVzdA==", url=None)]
+    client.images.generate.return_value = mock_gen_response
+    return client
 ```
 
-## Critical Integration Patterns
+**Always inject mocked clients into generators in tests.** See `tests/server/backend/generators/` for examples.
 
-### 1. MantineProvider Requirement
+## Image Format Conversions
 
-**ALL Mantine components MUST be wrapped in `MantineProvider`** - auto-injected via `_get_app_wrap_components()`:
+The `ImageProcessor` handles PNG↔JPEG↔WEBP conversions. Output format controlled by:
+- `output_format` input param: "png" | "jpeg" | "webp" (default: "jpeg")
+- Stored in `TMP_PATH` environment variable (default: "./images")
 
-```python
-# Automatically wraps app at priority 44
-@staticmethod
-def _get_app_wrap_components() -> dict[tuple[int, str], rx.Component]:
-    return {
-        (44, "MantineProvider"): MemoizedMantineProvider.create(),
-    }
-```
+## Async-First Pattern
 
-The provider respects Reflex's color mode and injects required CSS. See `mantine/mantine_provider.js`.
+All I/O operations are async:
+- Generator.generate/edit → async
+- PromptEnhancer.enhance → async
+- ImageProcessor.save → async
+- Routes handlers → async
 
-### 2. Custom CSS Injection Pattern
+Use `await` to call async functions; wrap in `@pytest.mark.asyncio` for tests.
 
-Components requiring additional CSS override `_get_custom_code()`:
+## Critical Integration Points
 
-```python
-class NavigationProgress(MantineComponentBase):
-    library = "@mantine/nprogress@8.3.3"
-
-    def _get_custom_code(self) -> str:
-        return """import '@mantine/core/styles.css';
-import '@mantine/nprogress/styles.css';
-import { nprogress } from '@mantine/nprogress';
-
-// Expose API globally for Reflex control
-if (typeof window !== 'undefined') {
-    window.nprogress = nprogress;
-}"""
-```
-
-### 3. Event Handler Transformations
-
-Some Mantine components send raw values instead of events - transform via `get_event_triggers()`:
-
-```python
-# NumberInput sends number directly, not event.target.value
-class NumberInput(MantineInputComponentBase):
-    on_change: EventHandler[lambda value: [value]] = None
-    # Receives number directly, not event object
-
-# DateInput sends null when cleared - convert to empty string for Reflex state
-def _date_input_on_change(value: Var) -> list[Var]:
-    return [rx.Var(f"({value} ?? '')", _var_type=str)]
-
-class DateInput(MantineDateInputBase):
-    def get_event_triggers(self) -> dict[str, Any]:
-        return {
-            **super().get_event_triggers(),
-            "on_change": _date_input_on_change,
-        }
-```
-
-### 4. External Library Dependencies
-
-Declare via `lib_dependencies` for NPM packages:
-
-```python
-class IMaskInput(rx.Component):
-    library = "react-imask@7.6.1"
-    lib_dependencies: list[str] = ["react-imask@7.6.1"]
-
-class DateInput(MantineDateInputBase):
-    library = "@mantine/dates@^8.3.3"
-    lib_dependencies: list[str] = ["dayjs@1.11.13"]
-```
-
-## Development Workflow
-
-### Running the Demo App
-
-```bash
-# Start Reflex dev server (auto-reload enabled)
-reflex run
-
-# Or with debug logging
-reflex run --loglevel debug
-```
-
-Access demo pages:
-- `/` - Index with navigation links
-- `/password` - PasswordInput examples
-- `/date` - DateInput examples
-- `/number` - NumberInput examples
-- `/textarea` - Textarea examples
-- `/inputs` - Input component showcase
-- `/nprogress` - NavigationProgress examples
-
-### Creating New Components
-
-1. **Determine base class:**
-   - Input-like? Extend `MantineInputComponentBase`
-   - General Mantine? Extend `MantineComponentBase`
-   - External library? Extend `rx.Component`
-
-2. **Implement minimal component:**
-
-```python
-from mantine.base import MantineInputComponentBase
-
-class MyInput(MantineInputComponentBase):
-    tag = "MyInput"  # React component name
-    alias = "MantineMyInput"  # Optional: avoid name collisions
-
-    # Only component-specific props
-    custom_prop: Var[str] = None
-    special_mode: Var[bool] = None
-
-# Export convenience function
-my_input = MyInput.create
-```
-
-3. **Add to `mantine/__init__.py`:**
-
-```python
-from mantine.my_input import MyInput, my_input
-
-__all__ = ["MyInput", "my_input", ...]
-```
-
-4. **Create example page in `app/pages/examples/`:**
-
-```python
-import reflex as rx
-import appkit_mantine as mn
-
-class MyInputState(rx.State):
-    value: str = ""
-
-    def set_value(self, val: str) -> None:
-        self.value = val
-
-def my_input_page() -> rx.Component:
-    return rx.container(
-        rx.heading("MyInput Examples"),
-        mn.my_input(
-            label="Example",
-            value=MyInputState.value,
-            on_change=MyInputState.set_value,
-        ),
-    )
-```
-
-5. **Register page in your application (e.g. `app/app.py`):**
-
-```python
-from server.pages.examples.my_input_examples import my_input_page
-
-# Then add the page to your Reflex app:
-app.add_page(my_input_page, title="My Input", route="/myinput")
-```
-
-### Testing Components
-
-Verify inheritance didn't break existing props:
-
-```python
-# All inherited props should work
-mn.my_input(
-    label="Test",  # From MantineInputComponentBase
-    required=True,  # From MantineInputComponentBase
-    left_section=rx.icon("search"),  # From MantineInputComponentBase
-    custom_prop="works",  # Your specific prop
-)
-```
-
-## Common Patterns from Examples
-
-### State Management with Validation
-
-```python
-class InputState(rx.State):
-    username: str = ""
-    username_error: str = ""
-
-    @rx.event
-    async def validate_username(self) -> AsyncGenerator[Any, Any]:
-        if len(self.username) < 3:
-            self.username_error = "Must be at least 3 characters"
-        else:
-            self.username_error = ""
-            yield rx.toast.success("Valid!", position="top-right")
-```
-
-### Controlled vs Uncontrolled Components
-
-```python
-# ✅ Controlled - value managed by state
-mn.input(value=State.value, on_change=State.set_value)
-
-# ✅ Uncontrolled - uses default_value
-mn.input(default_value="Initial")
-
-# ⚠️ IMaskInput is ALWAYS uncontrolled - use on_accept, not value
-mn.imask_input(mask="+1 (000) 000-0000", on_accept=State.handle_accept)
-```
-
-### Input.Wrapper for Complete Form Fields
-
-```python
-# All input components support wrapper props inherited from base
-mn.password_input(
-    label="Password",
-    description="Must be at least 8 characters",
-    error=State.password_error,
-    required=True,
-    with_asterisk=True,  # Show red asterisk
-    placeholder="Enter password",
-)
-```
-
-### Left/Right Sections (Icons, Buttons)
-
-```python
-# Inherited from MantineInputComponentBase
-mn.input(
-    placeholder="Search...",
-    left_section=rx.icon("search"),
-    left_section_pointer_events="none",  # Click-through
-    right_section=rx.button("Clear", on_click=State.clear),
-    right_section_pointer_events="all",  # Clickable
-)
-```
-
-## Code Quality Standards
-
-### Type Annotations (Python 3.12+)
-
-```python
-from typing import Any, Literal
-from reflex.vars.base import Var
-from reflex.event import EventHandler
-
-class MyComponent(MantineInputComponentBase):
-    # Use Var[] for Reflex props
-    variant: Var[Literal["filled", "outlined"]] = None
-    max_value: Var[int | float] = None
-
-    # Event handlers with lambda signatures
-    on_change: EventHandler[lambda value: [value]] = None
-```
-
-### Documentation Standards
-
-Every component should have:
-- Module docstring with Mantine docs link
-- Class docstring linking to Mantine reference
-- Prop comments explaining non-obvious behavior
-- Example usage in dedicated page
-
-```python
-"""Mantine MyInput component wrapper for Reflex.
-
-Provides advanced input functionality with custom features.
-See `my_input()` function for detailed usage and examples.
-
-Documentation: https://mantine.dev/core/my-input/
-"""
-
-class MyInput(MantineInputComponentBase):
-    """Mantine MyInput component.
-
-    Based on: https://mantine.dev/core/my-input/
-
-    Inherits common input props from MantineInputComponentBase.
-    See `my_input()` function for detailed documentation and examples.
-    """
-```
-
-## Project-Specific Notes
-
-### Why This Structure?
-
-- `pyproject.toml` references non-existent `components/knai-*` packages - **ignore these**, they're from a different project
-- `uv.lock` workspace members don't match actual structure - **this is a standalone component library**
-- Focus development in `mantine/` package and `reflex_mantine/` demo app only
-
-### Version Management
-
-- Pin versions to avoid breaking changes
-
-### Asset Management
-
-JavaScript shims in `assets/external/mantine/`:
-- `base/mantine_provider.js` - Color mode integration
-- `nprogress/navigation_progress.js` - Progress bar controls
-
-Reference via `asset(path="<filename.js>", shared=True)` in component `library` prop.
+1. **API Keys:** From environment (`OPENAI_API_KEY`, `GOOGLE_API_KEY`)
+2. **Image Storage:** `BACKEND_SERVER` + `TMP_PATH` for persisted images
+3. **Response Formats:** Always support `image` | `markdown` | `adaptive_card`
+4. **Logging:** Parameterized only (no f-strings)

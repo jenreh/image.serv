@@ -77,13 +77,15 @@ class OpenAIImageGenerator(ImageGenerator):
         # Call API
         try:
             logger.debug("Calling OpenAI API")
-            response = await self.client.images.generate(
-                model=self.model,
-                prompt=prompt_to_use,
-                size=input_data.size,
-                output_format=input_data.output_format,
-                background=input_data.background,
-            )
+            api_kwargs = {
+                "model": self.model,
+                "prompt": prompt_to_use,
+                "size": input_data.size,
+                "output_format": input_data.output_format,
+                "background": input_data.background,
+            }
+
+            response = await self.client.images.generate(**api_kwargs)
             logger.info("OpenAI API response received: %d images", len(response.data))
         except Exception as e:
             logger.exception("OpenAI API call failed")

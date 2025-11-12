@@ -4,7 +4,8 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from server.backend.generators.prompt_enhancer import CHAT_MODEL, PromptEnhancer
+
+from server.backend.prompt_enhancer import CHAT_MODEL, PromptEnhancer
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +14,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def mock_openai_client() -> MagicMock:
     """Mock AsyncAzureOpenAI client."""
-    client = MagicMock()
-    return client
+    return MagicMock()
 
 
 @pytest.fixture
@@ -217,7 +217,7 @@ class TestEnhanceParametrized:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "input_prompt,expected_enhanced",
+        ("input_prompt", "expected_enhanced"),
         [
             ("cat", "A majestic cat in natural lighting"),
             ("landscape", "Scenic landscape with mountains"),
@@ -246,7 +246,7 @@ class TestEnhanceParametrized:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "response_content,stripped_content",
+        ("response_content", "stripped_content"),
         [
             ("Enhanced prompt", "Enhanced prompt"),
             ("  Enhanced prompt  ", "Enhanced prompt"),
@@ -280,7 +280,7 @@ class TestEnhanceParametrized:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "error_type,error_message",
+        ("error_type", "error_message"),
         [
             (Exception, "API Error: 401 Unauthorized"),
             (TimeoutError, "Request timed out after 30s"),

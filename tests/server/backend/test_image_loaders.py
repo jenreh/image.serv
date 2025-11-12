@@ -5,7 +5,8 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from server.backend.generators.image_loaders import (
+
+from server.backend.image_loaders import (
     Base64ImageLoader,
     FileImageLoader,
     ImageLoaderFactory,

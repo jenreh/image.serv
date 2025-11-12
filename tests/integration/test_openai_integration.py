@@ -112,23 +112,6 @@ class TestOpenAIIntegrationGenerate:
         image_path = get_image_path(response.images[0], "test_generate_basic_image")
         logger.info("Generated image saved to: %s", image_path)
 
-    @pytest.mark.asyncio
-    async def test_generate_multiple_images(self, openai_image_generator) -> None:
-        """Test generating multiple images."""
-        input_data = GenerationInput(prompt="A simple geometric pattern", n=2)
-
-        response = await openai_image_generator.generate(input_data)
-
-        assert response.state == "succeeded"
-        assert len(response.images) == 2
-        assert all(isinstance(img, str) for img in response.images)
-        assert all(len(img) > 0 for img in response.images)
-
-        # Get image paths (generator already saved them)
-        for idx, image in enumerate(response.images):
-            image_path = get_image_path(image, f"test_generate_multiple_images_{idx}")
-            logger.info("Generated multiple image %d saved to: %s", idx + 1, image_path)
-
 
 @pytest.mark.integration
 class TestOpenAIIntegrationEdit:

@@ -66,7 +66,7 @@ def get_mcp_server(
                     "'adaptive_card' for Microsoft Adaptive Card JSON"
                 )
             ),
-        ] = "markdown",
+        ] = "image",
         seed: Annotated[
             int,
             Field(description="Random seed for reproducibility (0 = random)"),
@@ -147,7 +147,7 @@ def get_mcp_server(
                     "'adaptive_card' for Microsoft Adaptive Card JSON"
                 )
             ),
-        ] = "markdown",
+        ] = "image",
     ) -> str | Image:
         """Edit existing images with text prompts and optional masks.
 

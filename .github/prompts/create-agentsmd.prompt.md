@@ -5,13 +5,18 @@ mode: "agent"
 
 # Create high‑quality AGENTS.md file
 
-You are a code agent. Your task is to create a complete, accurate AGENTS.md at the root of this repository that follows the public guidance at https://agents.md/.
+You are a code agent. Your task is to create a complete, accurate AGENTS.md at the root
+of this repository that follows the public guidance at https://agents.md/.
 
-AGENTS.md is an open format designed to provide coding agents with the context and instructions they need to work effectively on a project.
+AGENTS.md is an open format designed to provide coding agents with the context and
+instructions they need to work effectively on a project.
 
 ## What is AGENTS.md?
 
-AGENTS.md is a Markdown file that serves as a "README for agents" - a dedicated, predictable place to provide context and instructions to help AI coding agents work on your project. It complements README.md by containing detailed technical context that coding agents need but might clutter a human-focused README.
+AGENTS.md is a Markdown file that serves as a "README for agents" - a dedicated,
+predictable place to provide context and instructions to help AI coding agents work
+on your project. It complements README.md by containing detailed technical context
+that coding agents need but might clutter a human-focused README.
 
 ## Key Principles
 
