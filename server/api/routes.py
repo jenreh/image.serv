@@ -7,13 +7,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from server.backend.generators import OpenAIImageGenerator
 from server.backend.image_service import (
     edit_image_impl,
     generate_image_impl,
 )
-from server.backend.models import EditImageInput, GenerationInput
+from server.backend.models import EditImageInput, GenerationInput, ImageGenerator
 from server.backend.utils import generate_response
+from server.server import GENERATOR_ID
 
 from .models import (
     ErrorDetail,
@@ -117,7 +117,7 @@ def _build_error_response(
     )
 
 
-def get_generator(request: Request) -> OpenAIImageGenerator:
+def get_generator(request: Request) -> ImageGenerator:
     """Dependency to inject generator from app state.
 
     Args:
@@ -129,7 +129,7 @@ def get_generator(request: Request) -> OpenAIImageGenerator:
     Raises:
         HTTPException: If generator not initialized
     """
-    generator = getattr(request.app.state, "generators", {}).get("gpt-image-1")
+    generator = getattr(request.app.state, "generators", {}).get(GENERATOR_ID)
     if not generator:
         logger.error("Generator not available in app state")
         raise HTTPException(
@@ -142,7 +142,7 @@ def get_generator(request: Request) -> OpenAIImageGenerator:
 @router.post("/generate_image")
 async def generate_image_route(
     request: GenerationInput,
-    generator: Annotated[OpenAIImageGenerator, Depends(get_generator)],
+    generator: Annotated[ImageGenerator, Depends(get_generator)],
 ) -> ImageResponse:
     """Generate images from text prompt.
 
@@ -197,7 +197,7 @@ async def generate_image_route(
 @router.post("/edit_image")
 async def edit_image_route(
     request: EditImageInput,
-    generator: Annotated[OpenAIImageGenerator, Depends(get_generator)],
+    generator: Annotated[ImageGenerator, Depends(get_generator)],
 ) -> ImageResponse:
     """Edit images with text prompt and optional mask.
 

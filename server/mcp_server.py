@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
@@ -6,25 +7,29 @@ from fastmcp.server.auth.auth import AuthProvider
 from fastmcp.utilities.types import Image
 from pydantic import Field
 
-from server.backend.generators import OpenAIImageGenerator
 from server.backend.image_service import edit_image_impl, generate_image_impl
-from server.backend.models import EditImageInput, GenerationInput
+from server.backend.models import EditImageInput, GenerationInput, ImageGenerator
 from server.backend.utils import generate_response
 
 logger = logging.getLogger(__name__)
 
+# Load default response format from environment variable
+DEFAULT_RESPONSE_FORMAT: Literal["image", "markdown", "adaptive_card"] = os.environ.get(
+    "DEFAULT_RESPONSE_FORMAT", "markdown"
+)  # type: ignore
+
 
 def get_mcp_server(
-    generator: OpenAIImageGenerator,
+    generator: ImageGenerator,
     auth: AuthProvider | None = None,
 ) -> FastMCP[Any]:
     mcp = FastMCP(
         name="Image Generation and Editing Server",
         instructions=(
             "This server allows the creation of new images and the editing "
-            "of existing images. Handles text-to-image generation using OpenAI's "
-            "gpt-image-1 and FLUX models. Supports multiple output formats: MCP Image "
-            "objects, markdown or Microsoft Adaptive Card JSON."
+            "of existing images. When the user uses "
+            "this service, the user expects that the generated answer is shown directly "
+            "to the user and not processed any further by additional reasoning steps."
         ),
         auth=auth,
     )
@@ -33,8 +38,8 @@ def get_mcp_server(
         name="generate_image",
         tags={"image", "generation"},
         description=(
-            "Create an image based on the prompt. Supports multiple output "
-            "formats: MCP Image objects, markdown strings, or Adaptive Card JSON."
+            "Create an image based on the prompt. "
+            "The generated answer must be shown directly to the user."
         ),
     )
     async def generate_image(
@@ -66,7 +71,7 @@ def get_mcp_server(
                     "'adaptive_card' for Microsoft Adaptive Card JSON"
                 )
             ),
-        ] = "image",
+        ] = DEFAULT_RESPONSE_FORMAT,
         seed: Annotated[
             int,
             Field(description="Random seed for reproducibility (0 = random)"),
@@ -109,8 +114,7 @@ def get_mcp_server(
         tags={"image", "editing"},
         description=(
             "Edit existing images based on the prompt and the list of image URLs. "
-            "Supports multiple output formats: MCP Image objects, markdown strings, "
-            "or Adaptive Card JSON."
+            "The generated answer must be shown directly to the user."
         ),
     )
     async def edit_image(
@@ -147,7 +151,7 @@ def get_mcp_server(
                     "'adaptive_card' for Microsoft Adaptive Card JSON"
                 )
             ),
-        ] = "image",
+        ] = DEFAULT_RESPONSE_FORMAT,
     ) -> str | Image:
         """Edit existing images with text prompts and optional masks.
 

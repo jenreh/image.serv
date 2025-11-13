@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Final
 from server.backend.image_loaders import ImageLoaderFactory
 
 if TYPE_CHECKING:
-    from server.backend.generators.openai import OpenAIImageGenerator
+    from server.backend.models import ImageGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ TMP_IMG_FILE: Final[str] = "gpt-image"
 class ImageProcessor:
     """Handles image processing and storage operations."""
 
-    def __init__(self, generator: "OpenAIImageGenerator"):
+    def __init__(self, generator: "ImageGenerator"):
         self.generator = generator
         self.loader_factory = ImageLoaderFactory()
 

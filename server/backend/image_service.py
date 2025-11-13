@@ -5,15 +5,19 @@ Handles image editing and inpainting using OpenAI's gpt-image-1 model.
 
 import logging
 
-from server.backend.generators import OpenAIImageGenerator
-from server.backend.models import EditImageInput, GenerationInput, ImageResponseState
+from server.backend.models import (
+    EditImageInput,
+    GenerationInput,
+    ImageGenerator,
+    ImageResponseState,
+)
 
 logger = logging.getLogger(__name__)
 
 
 async def edit_image_impl(
     input_data: EditImageInput,
-    generator: OpenAIImageGenerator,
+    generator: ImageGenerator,
 ) -> str:
     """Edit existing images with text prompts and optional masks.
 
@@ -49,7 +53,7 @@ async def edit_image_impl(
 
 async def generate_image_impl(
     input_data: GenerationInput,
-    generator: OpenAIImageGenerator,
+    generator: ImageGenerator,
 ) -> tuple[str, str | None]:
     """Generate images from text prompts using specified model.
 

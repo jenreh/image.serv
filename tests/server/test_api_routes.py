@@ -17,6 +17,7 @@ from server.api.routes import (
 )
 from server.backend.generators import OpenAIImageGenerator
 from server.backend.models import EditImageInput, GenerationInput
+from server.server import GENERATOR_ID
 
 
 class TestGetGeneratorDependency:
@@ -30,7 +31,7 @@ class TestGetGeneratorDependency:
 
         # Create FastAPI app with generator in state
         app = FastAPI()
-        app.state.generators = {"gpt-image-1": mock_generator}
+        app.state.generators = {GENERATOR_ID: mock_generator}
 
         # Create mock request with app
         mock_request = MagicMock()
@@ -495,7 +496,7 @@ class TestAPIIntegration:
         mock_generator = MagicMock(spec=OpenAIImageGenerator)
 
         # Store in app state
-        app.state.generators = {"gpt-image-1": mock_generator}
+        app.state.generators = {GENERATOR_ID: mock_generator}
 
         return app
 
@@ -522,7 +523,7 @@ class TestAPIIntegration:
         app.include_router(router)
 
         mock_generator = MagicMock(spec=OpenAIImageGenerator)
-        app.state.generators = {"gpt-image-1": mock_generator}
+        app.state.generators = {GENERATOR_ID: mock_generator}
 
         client = TestClient(app)
 

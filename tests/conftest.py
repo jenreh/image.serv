@@ -11,6 +11,7 @@ import pytest
 from dotenv import load_dotenv
 
 from server.backend.generators.openai import OpenAIImageGenerator
+from server.backend.models import ImageGenerator
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -120,7 +121,7 @@ def openai_api_key() -> str:
 @pytest.fixture
 def openai_image_generator(
     openai_api_key: str, openai_base_url: str, backend_server: str
-) -> OpenAIImageGenerator:
+) -> ImageGenerator:
     """Create OpenAI image generator instance."""
     return OpenAIImageGenerator(
         api_key=openai_api_key,

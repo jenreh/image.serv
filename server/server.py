@@ -29,9 +29,9 @@ from fastapi.staticfiles import StaticFiles
 from server.api.errors import register_exception_handlers
 from server.api.routes import router
 from server.backend.generators import OpenAIImageGenerator
+from server.backend.models import ImageGenerator
 from server.mcp_server import get_mcp_server
 
-# Load environment variables from .env file (explicit path for reliability)
 _env_path = Path(__file__).parent.parent / ".env"
 if _env_path.exists():
     load_dotenv(dotenv_path=_env_path)
@@ -57,7 +57,8 @@ logger = logging.getLogger(__name__)
 
 
 # Initialize generators at module level
-_generators: dict[str, OpenAIImageGenerator] = {}
+_generators: dict[str, ImageGenerator] = {}
+GENERATOR_ID: Final[str] = "azure"
 
 
 def init_generators() -> None:
@@ -70,29 +71,21 @@ def init_generators() -> None:
     backend_server = os.environ.get("BACKEND_SERVER")
 
     if openai_key and openai_base_url:
-        _generators["gpt-image-1"] = OpenAIImageGenerator(
+        _generators[GENERATOR_ID] = OpenAIImageGenerator(
             api_key=openai_key,
             base_url=openai_base_url,
             backend_server=backend_server,
-            model="gpt-image-1",
+            # model="gpt-image-1",
+            model="FLUX.1-Kontext-pro",
         )
-        logger.info("Initialized gpt-image-1 generator")
-
-        _generators["FLUX.1-Kontext-pro"] = OpenAIImageGenerator(
-            api_key=openai_key,
-            backend_server=backend_server,
-        )
-        logger.info("Initialized FLUX.1-Kontext-pro generator")
+        logger.info("Initialized Azure image generator")
 
     if not _generators:
         logger.warning("✗ No generators initialized - check environment variables")
 
 
-# Initialize generators
 init_generators()
-
-# Create MCP server
-mcp_server = get_mcp_server(generator=_generators.get("gpt-image-1"))
+mcp_server = get_mcp_server(generator=_generators.get(GENERATOR_ID))
 mcp_app = mcp_server.http_app(
     stateless_http=True,
     path="/v1",
@@ -135,8 +128,8 @@ def main() -> None:
 
     logger.info("=" * 60)
     logger.info("Server configuration")
+    logger.info("  MCP:         /mcp/v1")
     logger.info("  REST API:    /api/v1/*")
-    logger.info("  MCP:         /mcp")
     logger.info("  Docs:        /api/docs")
     logger.info("=" * 60)
 
