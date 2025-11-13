@@ -48,11 +48,5 @@
             ],
             "gallery": true
         },
-        // Image generation MCP server
-        "image-generation": {
-            "type": "http",
-            "url": "http://localhost:8000/mcp/v1",
-            "gallery": true
-        }
     }
 }
