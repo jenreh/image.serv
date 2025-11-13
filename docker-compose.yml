@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  image-serv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.12"
+        APP_USER: "app"
+    container_name: image-serv
+    ports:
+      - "8000:8000"
+    environment:
+      # Required - set your actual API keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-your-openai-api-key}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://your-azure-endpoint.openai.azure.com}
+
+      # Optional
+      BACKEND_SERVER: ${BACKEND_SERVER:-http://localhost:8000}
+      TMP_PATH: /app/images
+      DEFAULT_RESPONSE_FORMAT: markdown
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      # Persistent storage for generated images
+      - image_storage:/app/images
+      # Persistent logs
+      - logs_storage:/app/logs
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+volumes:
+  image_storage:
+    driver: local
+  logs_storage:
+    driver: local

@@ -1,33 +1,55 @@
-.cache
-.coverage
-.coverage.*
-.devcontainer
-.env
+# Git
 .git
-.github
-.hypothesis
-.mypy_cache
-.pytest_cache
-.Python
-.states
-.tox
-.venv
-.vscode
-.web
-*.cover
-*.log
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
 *.so
-*.sql
-**/__pycache__/
-**/*.pyc
-**/*.pyd
-**/*.pyo
+.Python
+*.egg
+*.egg-info
+dist
+build
+.venv
+env
+venv
+
+# Testing
+.pytest_cache
+.coverage
 coverage.xml
-docs
 htmlcov
-images
-infra
+.tox
+.nox
+
+# IDE & Editors
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-*
+
+# Development
+.env
+.env.local
+.env.*.local
+logs
+*.log
+
+# Documentation (but keep README.md and LICENSE.md for build)
+docs
+
+# Config & Build
 Makefile
-nosetests.xml
-scripts
+.github/prompts
+
+# CI/CD
+.github/workflows
+
+# Optional: exclude tests from production image
 tests
