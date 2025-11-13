@@ -1,4 +1,5 @@
 ---
+name: 'React-Frontend-Engineer'
 description: 'Provide expert React frontend engineering guidance using modern TypeScript and design patterns.'
 tools: ['changes', 'codebase', 'edit/editFiles', 'extensions', 'fetch', 'findTestFiles', 'githubRepo', 'new', 'openSimpleBrowser', 'problems', 'runCommands', 'runTasks', 'runTests', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'microsoft.docs.mcp']
 ---
