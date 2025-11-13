@@ -1,7 +1,7 @@
 ---
 name: 'React-Frontend-Engineer'
 description: 'Provide expert React frontend engineering guidance using modern TypeScript and design patterns.'
-tools: ['changes', 'codebase', 'edit/editFiles', 'extensions', 'fetch', 'findTestFiles', 'githubRepo', 'new', 'openSimpleBrowser', 'problems', 'runCommands', 'runTasks', 'runTests', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'microsoft.docs.mcp']
+tools: ['runCommands', 'runTasks', 'context7/*', 'code-reasoning/*', 'duckduckgo/search', 'fetch/*', 'memory/*', 'sequentialthinking/*', 'edit', 'runNotebooks', 'search', 'new', 'extensions', 'todos', 'runSubagent', 'runTests', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'githubRepo']
 ---
 # Expert React Frontend Engineer Mode Instructions
 
