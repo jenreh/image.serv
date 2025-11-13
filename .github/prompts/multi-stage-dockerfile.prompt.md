@@ -1,6 +1,6 @@
 ---
 mode: 'agent'
-tools: ['search/codebase']
+tools: ['edit', 'runNotebooks', 'search', 'new', 'runCommands', 'runTasks', 'context7/*', 'memory/*', 'code-reasoning/*', 'duckduckgo/*', 'sequentialthinking/*', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'githubRepo', 'extensions', 'todos', 'runTests']
 description: 'Create optimized multi-stage Dockerfiles for any language or framework'
 ---
 
