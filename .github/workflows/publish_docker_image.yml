@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     # Publish under the org's GHCR namespace; keep image name lowercase
     env:
-      IMAGE_NAME: ghcr.io/jenreh/appkit-app
+      IMAGE_NAME: ghcr.io/jenreh/image-serv
     steps:
       - name: Resolve release tag
         id: resolve_tag
@@ -89,5 +89,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             RELEASE_TAG=${{ steps.resolve_tag.outputs.release_tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Multi-layered caching strategy:
+          # 1. Read from GHA cache (fastest) for both amd64 and arm64
+          # 2. Read from inline registry cache (fallback) - useful for public images
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-${{ github.sha }}
+          # Write cache in two formats:
+          # 1. GHA cache (max mode) - retains all intermediate layers
+          # 2. Inline registry cache - accessible from any builder, supports multi-arch
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-latest,image-manifest=true
