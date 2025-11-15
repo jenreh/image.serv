@@ -13,7 +13,7 @@ from server.backend.image_service import (
 )
 from server.backend.models import EditImageInput, GenerationInput, ImageGenerator
 from server.backend.utils import generate_response
-from server.server import GENERATOR_ID
+from server.config import GENERATOR_ID
 
 from .models import (
     ErrorDetail,

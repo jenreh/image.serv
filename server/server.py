@@ -30,6 +30,7 @@ from server.api.errors import register_exception_handlers
 from server.api.routes import router
 from server.backend.generators import OpenAIImageGenerator
 from server.backend.models import ImageGenerator
+from server.config import GENERATOR_ID
 from server.mcp_server import get_mcp_server
 
 _env_path = Path(__file__).parent.parent / ".env"
@@ -58,7 +59,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize generators at module level
 _generators: dict[str, ImageGenerator] = {}
-GENERATOR_ID: Final[str] = "azure"
 
 
 def init_generators() -> None:
