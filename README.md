@@ -19,7 +19,9 @@ flexible integration with AI assistants and applications.
 
 - Python 3.12 or later
 - [**uv**](https://docs.astral.sh/uv/) package manager
-- API keys for image generation:
+- API keys:
+  - **REQUIRED**: Azure OpenAI API key and endpoint (for gpt-image-1 model)
+  - **OPTIONAL**: Google AI API key (for additional image generation capabilities)
 
 ### Installation
 
@@ -39,13 +41,34 @@ uv sync
 1. Configure environment variables:
 
 ```bash
-# Required for gpt-image-1
-export OPENAI_API_KEY="your-openai-api-key"
-export OPENAI_BASE_URL="https://your-azure-endpoint.openai.azure.com" # when using Azure
+cp .env.example .env
+# Edit .env with your actual values
+```
 
-# Image storage (optional)
-export BACKEND_SERVER="http://localhost:8000" # for download URL generation
-export TMP_PATH="./images"                    # for generated images
+Or set them directly:
+
+```bash
+# REQUIRED: Azure OpenAI API Configuration
+export OPENAI_API_KEY="your-azure-openai-api-key" # pragma: allowlist secret
+export OPENAI_BASE_URL="https://your-resource-name.openai.azure.com"
+
+# OPTIONAL: Google AI Configuration
+export GOOGLE_API_KEY="your-google-api-key" # pragma: allowlist secret
+
+# OPTIONAL: Backend server URL for image download URLs
+export BACKEND_SERVER="http://localhost:8000"
+
+# OPTIONAL: Temporary image storage directory
+export TMP_PATH="./images"
+
+# OPTIONAL: Default response format (image|markdown|adaptive_card)
+export DEFAULT_RESPONSE_FORMAT="markdown"
+
+# OPTIONAL: Logging level (DEBUG|INFO|WARNING|ERROR|CRITICAL)
+export LOG_LEVEL="INFO"
+
+# OPTIONAL: Server port
+export PORT="8000"
 ```
 
 ## Usage
@@ -268,10 +291,14 @@ Error responses include detailed messages:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `OPENAI_API_KEY` | Yes | - | Azure OpenAI API key |
-| `OPENAI_BASE_URL` | Yes | - | Azure OpenAI endpoint URL |
-| `BACKEND_SERVER` | No | `http://localhost:8000` | Backend server URL for image URLs |
-| `TMP_PATH` | No | `./images` | Directory for storing generated images |
+| `OPENAI_API_KEY` | Yes | - | Azure OpenAI key for gpt-image-1 |
+| `OPENAI_BASE_URL` | Yes | - | Azure OpenAI endpoint URL (e.g., `https://your-resource-name.openai.azure.com`) |
+| `GOOGLE_API_KEY` | No | - | Google AI key for image generation |
+| `BACKEND_SERVER` | No | `http://localhost:8000` | Backend server URL for image download URLs (use `http://host.docker.internal:8000` in Docker) |
+| `TMP_PATH` | No | `./images` | Directory for storing generated images (use `/app/images` in Docker) |
+| `DEFAULT_RESPONSE_FORMAT` | No | `markdown` | Default response format: `image`, `markdown`, or `adaptive_card` |
+| `LOG_LEVEL` | No | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` |
+| `PORT` | No | `8000` | Server port |
 
 ## License
 
