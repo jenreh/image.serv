@@ -9,6 +9,8 @@ from typing import Final, Literal
 import anyio
 from pydantic import BaseModel, Field
 
+from server.config import MAX_IMAGES_TO_KEEP
+
 logger = logging.getLogger(__name__)
 TMP_PATH: Final[str] = os.environ.get("TMP_PATH", "./images")
 
@@ -24,7 +26,7 @@ class ImageInputBase(BaseModel):
     prompt: str = Field(..., description="Text description (max 32000 chars)")
 
     size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(
-        default="auto", description="Image dimensions"
+        default="1024x1024", description="Image dimensions"
     )
 
     # Output format
@@ -34,7 +36,7 @@ class ImageInputBase(BaseModel):
 
     # Background transparency
     background: Literal["transparent", "opaque", "auto"] = Field(
-        default="auto", description="Background transparency setting"
+        default="opaque", description="Background transparency setting"
     )
 
     # Response format
@@ -198,7 +200,10 @@ class ImageGenerator(ABC):
         raise NotImplementedError("Subclasses must implement the _perform_edit method.")
 
     def clean_tmp_path(self, prefix: str) -> Path:
-        """remove all images beginning with prefix from TMP_PATH"""
+        """Keep only the last MAX_IMAGES_TO_KEEP images with the given prefix.
+
+        Deletes oldest images when the count exceeds the limit.
+        """
         tmp_path = Path(TMP_PATH)
 
         if not tmp_path.exists():
@@ -208,9 +213,25 @@ class ImageGenerator(ABC):
             logger.error("Temporary path %s is not a directory.", tmp_path)
             raise NotADirectoryError(f"Temporary path {tmp_path} is not a directory.")
 
-        for file in tmp_path.iterdir():
-            if file.is_file() and file.name.startswith(prefix):
-                logger.debug("Removing temporary file: %s", file)
+        # Get all files matching the prefix, sorted by modification time
+        files_with_prefix = sorted(
+            (
+                f
+                for f in tmp_path.iterdir()
+                if f.is_file() and f.name.startswith(prefix)
+            ),
+            key=lambda f: f.stat().st_mtime,  # Oldest first
+        )
+
+        # Keep only the last MAX_IMAGES_TO_KEEP images
+        if len(files_with_prefix) > MAX_IMAGES_TO_KEEP:
+            files_to_delete = files_with_prefix[:-MAX_IMAGES_TO_KEEP]
+            for file in files_to_delete:
+                logger.debug(
+                    "Removing old image: %s (keeping last %d images)",
+                    file,
+                    MAX_IMAGES_TO_KEEP,
+                )
                 file.unlink()
 
         return tmp_path

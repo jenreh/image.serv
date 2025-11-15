@@ -1,5 +1,6 @@
 """REST API routes for image generation and editing."""
 
+import base64
 import json
 import logging
 import time
@@ -39,7 +40,10 @@ def _build_image_data(response_obj: str | object, response_format: str) -> Image
     """
     match response_format:
         case "image":
-            return ImageData(images=[response_obj.data])
+            # Convert bytes to base64 string
+            image_bytes = response_obj.data
+            b64_string = base64.b64encode(image_bytes).decode("utf-8")
+            return ImageData(images=[b64_string])
         case "adaptive_card":
             return ImageData(adaptive_card=json.loads(response_obj))
         case _:  # "markdown"

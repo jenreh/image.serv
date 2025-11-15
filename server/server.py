@@ -115,6 +115,9 @@ app.mount("/mcp", mcp_app)
 app.include_router(router, prefix="/api/v1", tags=["image"])
 register_exception_handlers(app)
 
+# Store generators in app state for route handlers
+app.state.generators = _generators
+
 tmp_dir = Path(TMP_PATH)
 tmp_dir.mkdir(parents=True, exist_ok=True)
 app.mount(
