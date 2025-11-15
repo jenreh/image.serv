@@ -40,6 +40,7 @@ else:
     load_dotenv()  # Fallback to automatic detection
 
 TMP_PATH: Final[str] = os.environ.get("TMP_PATH", "../images")
+PORT: Final[int] = int(os.environ.get("PORT", "8000"))
 
 # Configure logging to project directory (NOT /tmp/)
 _logs_dir = Path(__file__).parent.parent / "logs"
@@ -136,7 +137,7 @@ def main() -> None:
     uvicorn.run(
         "server.server:app",
         host="0.0.0.0",
-        port=8000,
+        port=PORT,
         log_level="info",
         reload=True,
     )
