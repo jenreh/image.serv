@@ -8,7 +8,7 @@
 # STAGE 1: Builder
 # Install dependencies using pip, set up Python environment
 # ============================================================================
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 LABEL maintainer="Jens Rehpöhler <jens@example.com>"
 LABEL description="Builder stage for image.serv - installs dependencies"
@@ -49,7 +49,7 @@ RUN python -m venv /opt/venv && \
 # STAGE 2: Runtime
 # Minimal production image with only runtime requirements
 # ============================================================================
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # Build arguments for configuration
 ARG APP_USER=app
