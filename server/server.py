@@ -31,7 +31,8 @@ from server.api.routes import router
 from server.backend.generators import OpenAIImageGenerator
 from server.backend.models import ImageGenerator
 from server.config import GENERATOR_ID
-from server.mcp_server import get_mcp_server
+from server.mcp.auth import verifier
+from server.mcp.server import get_mcp_server
 
 _env_path = Path(__file__).parent.parent / ".env"
 if _env_path.exists():
@@ -86,7 +87,7 @@ def init_generators() -> None:
 
 
 init_generators()
-mcp_server = get_mcp_server(generator=_generators.get(GENERATOR_ID))
+mcp_server = get_mcp_server(generator=_generators.get(GENERATOR_ID), auth=verifier)
 mcp_app = mcp_server.http_app(
     stateless_http=True,
     path="/v1",
