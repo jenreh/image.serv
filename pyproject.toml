@@ -1,6 +1,6 @@
 [project]
 name = "image.serv"
-version = "0.3.0"
+version = "0.4.0"
 description = "Image generating and editing MCP service"
 readme = "README.md"
 requires-python = ">=3.12"
